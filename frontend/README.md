@@ -1,6 +1,6 @@
-# ChessScope web — analysis board
+# ChessScope web — archive and analysis board
 
-React + TypeScript (Vite) analysis workspace modelled on [Chess.com Analysis](https://www.chess.com/analysis): board with eval bar, engine lines, opening name, move tree with variations, navigation, and a slot for the board-aware coach chat.
+React + TypeScript (Vite) workspace: searchable game archive, tournament pages and the analysis board with engine lines, move tree, variations and navigation.
 
 ## Run
 
@@ -11,6 +11,8 @@ npm run dev      # copies the Stockfish WASM build into public/stockfish, then s
 npm test         # move tree, PGN import/export, openings, UCI parsing
 npm run build
 ```
+
+The archive needs the local Python server and its SQLite corpus. From the repository root, run `.venv/bin/python -m library build` (once), `npm run build` in this directory, then `.venv/bin/python -m library serve`. Open <http://127.0.0.1:8765>. Game rows open a new tab with the source PGN loaded into the board. See [library documentation](../docs/10-game-library.md).
 
 ## What is here
 

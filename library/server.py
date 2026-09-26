@@ -12,10 +12,12 @@ import chess
 from ingestion.pgn import export_pgn
 from .build import country, fold
 
-STATIC = Path(__file__).parent / "static"
+DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 STATUS = {"all", "accepted", "quarantine", "rejected"}
 SORT = {"newest": "g.played_on DESC,g.id DESC", "oldest": "g.played_on ASC,g.id ASC",
-        "tournament": "ev.name_fold ASC,g.played_on DESC,g.id DESC"}
+        "tournament": "ev.name_fold ASC,g.played_on DESC,g.id DESC",
+        "rating": "COALESCE(g.white_rating,0)+COALESCE(g.black_rating,0) DESC,g.played_on DESC",
+        "longest": "g.ply_count DESC,g.played_on DESC"}
 
 
 def connect_readonly(path):
@@ -77,16 +79,18 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response({"error": "Не удалось открыть данные. Проверьте локальный журнал сервера."}, 500)
 
     def static(self, path):
-        name = "index.html" if path == "/" else path.lstrip("/")
-        if name not in {"index.html", "app.css", "app.js"}:
-            self.send_error(404)
-            return
-        file = STATIC / name
+        if path == "/" or path == "/analysis" or path == "/tournaments" or re.fullmatch(r"/(games|tournaments)/\d+/?", path):
+            file = DIST / "index.html"
+        else:
+            file = (DIST / path.lstrip("/")).resolve()
+            if not file.is_relative_to(DIST.resolve()) or not file.is_file():
+                self.send_error(404)
+                return
         body = file.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(file.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", "no-cache" if file.name == "index.html" else "public, max-age=3600")
         self.end_headers()
         self.wfile.write(body)
 
@@ -132,6 +136,11 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response([dict(r) for r in rows]); return
         if path == "/api/games":
             self.list_games(db, p); return
+        if path == "/api/tournaments":
+            self.list_tournaments(db, p); return
+        tournament = re.fullmatch(r"/api/tournaments/(\d+)", path)
+        if tournament:
+            self.tournament_detail(db, int(tournament.group(1))); return
         match = re.fullmatch(r"/api/games/(\d+)(/pgn)?", path)
         if match:
             self.game_detail(db, int(match.group(1)), bool(match.group(2))); return
@@ -152,6 +161,12 @@ class Handler(BaseHTTPRequestHandler):
             where.append("g.year>=?"); args.append(first)
         if last < 2100:
             where.append("g.year<=?"); args.append(last)
+        for key, operator in (("date_from", ">="), ("date_to", "<=")):
+            value = p.get(key, "")
+            if value:
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                    raise ValueError("Дата должна быть в формате ГГГГ-ММ-ДД")
+                where.append(f"g.played_on{operator}?"); args.append(value)
         event_id = p.get("event_id", "")
         if event_id.isdigit():
             where.append("g.event_id=?"); args.append(int(event_id))
@@ -204,6 +219,31 @@ class Handler(BaseHTTPRequestHandler):
                 black, black_args = federation_branch("black_fed")
                 where.append(f"g.id IN ({white} UNION {black})")
                 args.extend(white_args + black_args)
+        result = p.get("result", "")
+        if result:
+            if result not in {"1-0", "0-1", "1/2-1/2", "*"}:
+                raise ValueError("Недопустимый результат")
+            where.append("g.result=?"); args.append(result)
+        source_kind = p.get("source", "")
+        if source_kind:
+            if source_kind not in {"fide-official", "broadcast"}:
+                raise ValueError("Недопустимый источник")
+            where.append("g.source_kind=?"); args.append(source_kind)
+        minimum_rating = safe_int(p.get("min_rating"), 0, 0, 3500)
+        if minimum_rating:
+            where.append("g.white_rating>=? AND g.black_rating>=?")
+            args.extend([minimum_rating, minimum_rating])
+        eco = p.get("eco", "").strip().upper()[:3]
+        if eco:
+            if not re.fullmatch(r"[A-E][0-9]{0,2}", eco):
+                raise ValueError("ECO: буква A–E и до двух цифр")
+            upper = eco[:-1] + chr(ord(eco[-1]) + 1)
+            where.append("g.id IN (SELECT id FROM games INDEXED BY games_eco WHERE eco>=? AND eco<?)")
+            args.extend([eco, upper])
+        opening = p.get("opening", "").strip()[:80]
+        if opening:
+            term = "%" + opening.lower().replace("%", "\\%").replace("_", "\\_") + "%"
+            where.append("lower(g.opening) LIKE ? ESCAPE '\\'"); args.append(term)
         clause = " WHERE " + " AND ".join(where) if where else ""
         sort = SORT.get(p.get("sort", "newest"), SORT["newest"])
         limit = safe_int(p.get("limit"), 24, 1, 60)
@@ -218,6 +258,35 @@ class Handler(BaseHTTPRequestHandler):
             row["white_flag"] = country(row["white_fed"])[1]
             row["black_flag"] = country(row["black_fed"])[1]
         self.json_response({"total": count, "page": page, "limit": limit, "games": rows})
+
+    def list_tournaments(self, db, p):
+        q = p.get("q", "").strip()[:80]
+        page = safe_int(p.get("page"), 1, 1, 100000)
+        limit = safe_int(p.get("limit"), 30, 1, 60)
+        sort = p.get("sort", "games")
+        order = "ev.games DESC,ev.name" if sort != "name" else "ev.name_fold,ev.id"
+        where, args = "", []
+        if q:
+            match = fts_query(q)
+            if match:
+                where = " WHERE ev.id IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)"
+                args.append(match)
+        total = db.execute("SELECT count(*) FROM events ev" + where, args).fetchone()[0]
+        rows = db.execute("SELECT ev.id,ev.name,ev.games FROM events ev" + where +
+                          " ORDER BY " + order + " LIMIT ? OFFSET ?", args + [limit, (page - 1) * limit])
+        self.json_response({"total": total, "page": page, "limit": limit, "tournaments": [dict(r) for r in rows]})
+
+    def tournament_detail(self, db, event_id):
+        item = db.execute("SELECT id,name,games FROM events WHERE id=?", (event_id,)).fetchone()
+        if not item:
+            self.json_response({"error": "Турнир не найден"}, 404); return
+        summary = db.execute("""SELECT min(played_on) AS first_date,max(played_on) AS last_date,
+                    count(DISTINCT year) AS years,count(DISTINCT source_id) AS sources,
+                    sum(result='1-0') AS white_wins,sum(result='0-1') AS black_wins,
+                    sum(result='1/2-1/2') AS draws FROM games WHERE event_id=?""", (event_id,)).fetchone()
+        years = [dict(r) for r in db.execute("""SELECT year,count(*) AS games FROM games
+                    WHERE event_id=? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 30""", (event_id,))]
+        self.json_response(dict(item) | dict(summary) | {"years": years})
 
     def game_detail(self, db, game_id, pgn):
         item = db.execute("""SELECT g.*,ev.name AS tournament FROM games g
@@ -267,6 +336,8 @@ class Handler(BaseHTTPRequestHandler):
 def serve(library, corpus, port=8765):
     if not Path(library).is_file() or not Path(corpus).is_file():
         raise FileNotFoundError("Build data/library.sqlite first; data/corpus.sqlite is also required")
+    if not (DIST / "index.html").is_file():
+        raise FileNotFoundError("Build frontend first: cd frontend && npm ci && npm run build")
     Handler.library_path, Handler.corpus_path = library, corpus
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"ChessScope library: http://127.0.0.1:{port}", flush=True)

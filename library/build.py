@@ -195,6 +195,7 @@ def build(corpus, target, fide_archive, events_path):
           CREATE INDEX games_white_date ON games(white_id,played_on DESC,id);
           CREATE INDEX games_black_date ON games(black_id,played_on DESC,id);
           CREATE INDEX games_year ON games(year);
+          CREATE INDEX games_eco ON games(eco,year);
           CREATE INDEX games_white_fed ON games(white_fed,status,year);
           CREATE INDEX games_black_fed ON games(black_fed,status,year);
           CREATE INDEX events_games ON events(games DESC);

@@ -2,7 +2,7 @@
 
 This repository is the HACK_002 Vienna hackathon workspace for a focused ChessScope demonstration. The idea is **not** a lightweight helper for Chess.com or Lichess accounts: it is a first, honest slice of an AI-native research and analysis workspace for FIDE-rated over-the-board players and coaches.
 
-The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch adds an executable, tested [database ingestion phase](docs/09-database-parsing.md) and a [local game library](docs/10-game-library.md) for examining the imported corpus. The production web application and payment integration remain unimplemented.
+The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch now combines the tested [database ingestion phase](docs/09-database-parsing.md), the [local game and tournament library](docs/10-game-library.md), and the interactive analysis board merged from `board`. Deployment, payment integration, and the evidence-backed coach remain unimplemented.
 
 ## The problem in one minute
 

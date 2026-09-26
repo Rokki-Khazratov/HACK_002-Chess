@@ -30,6 +30,7 @@ import {
   toPgn,
 } from './chess/tree';
 import { type EngineState, StockfishEngine } from './engine/stockfish';
+import type { GameDetail } from './library/api';
 
 const ENGINE_OPTIONS = { multiPv: 3, maxDepth: 22 };
 type PanelTab = 'moves' | 'tree';
@@ -42,8 +43,8 @@ function storedTab(): PanelTab {
   }
 }
 
-export default function App() {
-  const [tree, setTree] = useState<MoveTree>(() => createTree());
+export default function App({ initialTree, game }: { initialTree?: MoveTree; game?: GameDetail }) {
+  const [tree, setTree] = useState<MoveTree>(() => initialTree ?? createTree());
   const [currentId, setCurrentId] = useState(tree.rootId);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
   const [engineEnabled, setEngineEnabled] = useState(true);
@@ -265,7 +266,8 @@ export default function App() {
         <div className="board-frame">
           <div className="player">
             <span className={`player-avatar player-avatar-${topColor}`} />
-            {topColor === 'white' ? 'White' : 'Black'}
+            {topColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
+            {game && <span className="player-rating">{topColor === 'white' ? game.white_rating : game.black_rating}</span>}
           </div>
           <EvalBar score={bestScore} flipped={orientation === 'black'} />
           <AnalysisBoard
@@ -277,13 +279,14 @@ export default function App() {
           />
           <div className="player">
             <span className={`player-avatar player-avatar-${bottomColor}`} />
-            {bottomColor === 'white' ? 'White' : 'Black'}
+            {bottomColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
+            {game && <span className="player-rating">{bottomColor === 'white' ? game.white_rating : game.black_rating}</span>}
           </div>
         </div>
       </main>
 
       <aside className="panel">
-        <h1 className="panel-title">Analysis</h1>
+        <h2 className="panel-title">{game ? `${game.result} · ${game.played_on || 'Дата неизвестна'}` : 'Анализ'}</h2>
         <EnginePanel
           engine={engineCurrent || !engineEnabled ? engine : { ...engine, lines: [], depth: 0 }}
           enabled={engineEnabled}
@@ -314,7 +317,7 @@ export default function App() {
               className={`tab${tab === value ? ' tab-active' : ''}`}
               onClick={() => setTab(value)}
             >
-              {value === 'moves' ? 'Moves' : 'Tree'}
+              {value === 'moves' ? 'Ходы' : 'Дерево'}
             </button>
           ))}
           <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : ''}</span>
@@ -364,11 +367,11 @@ export default function App() {
           </button>
         </nav>
         <div className="toolbar">
-          <button type="button" className="btn" onClick={reset}>New</button>
-          <button type="button" className="btn" onClick={flip} title="Flip board (F)">Flip</button>
-          <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
-          <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
-          <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
+          <button type="button" className="btn" onClick={reset}>Новая</button>
+          <button type="button" className="btn" onClick={flip} title="Перевернуть доску (F)">Повернуть</button>
+          <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Импорт PGN</button>
+          <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Копировать PGN</button>
+          <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Копировать FEN</button>
         </div>
         <ChatPanel fen={current.fen} />
       </aside>

@@ -9,6 +9,7 @@ From the repository root, with the ingestion environment installed and `data/cor
 ```bash
 .venv/bin/python -m pip install -r requirements-ingestion.txt
 .venv/bin/python -m library build
+cd frontend && npm ci && npm run build && cd ..
 .venv/bin/python -m library serve
 ```
 
@@ -19,10 +20,10 @@ The build also reads `data/raw/standard_sep26frl.zip`, the September 2026 FIDE S
 ## What can be inspected
 
 - Search a player by name or FIDE ID; select white, black, or either color.
-- Search tournaments by name, filter by year range and federation, and sort by date or tournament.
-- Switch between all records, accepted, quarantine, and rejected. The accepted group is the strict FIDE/official/OTB/classical/above-1800 subset as defined by the ingestion policy.
-- Open a game to step through its legal moves, inspect ratings, IDs, source link, classification reasons, and download its PGN.
+- Filter by event name, year, exact date range, federation, result, minimum Elo for both players, ECO, opening and source type; sort by date, event, rating or game length.
+- Browse a separate tournament index and event detail page with date span, year distribution, sources, results and its games.
+- Open a game in a new browser tab on the analysis board from the `board` branch. Its source PGN is loaded into the move tree; the board keeps engine, variations and navigation.
 
-The catalog uses conservative `game_key` deduplication. Counts therefore represent catalog games, not raw imported occurrences. Many broadcast records are not proven official OTB classical games. A generic event name can be enriched from an available broadcast or study name, but that display name is not treated as official event evidence. Search counts and flag labels are for review, not a claim of global completeness.
+The catalog uses conservative `game_key` deduplication. Counts therefore represent catalog games, not raw imported occurrences. Many broadcast records are not proven official OTB classical games. **Classification stays in the database for audit, but is hidden in the browsing UI.** Do not interpret every visible game as FIDE-approved. A generic event name can be enriched from an available broadcast or study name, but that display name is not treated as official event evidence. Search counts and flag labels are for review, not a claim of global completeness.
 
-The interface is intentionally standalone HTML/CSS/JavaScript with a Python standard-library HTTP server and SQLite read-only queries. It is a temporary review surface, not the future production frontend or API.
+The interface is the React board application merged from the `board` branch, with the archive and tournaments sharing its visual system. The Python standard-library HTTP server serves its production build and the SQLite read-only API. It binds to loopback only. This remains a local review surface, not a deployed service.
