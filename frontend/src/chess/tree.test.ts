@@ -127,12 +127,12 @@ describe('PGN import', () => {
     expect(toPgn(result.tree)).toBe('1. e4 e5 (1... c5 2. Nf3 (2. c3 d5) 2... d6) 2. Nf3 Nc6 3. Bb5 a6 *');
   });
 
-  it('loads the dev mock game with five side lines at move 6', () => {
+  it('loads the mock game with branches at moves 6, 7 and 8', () => {
     const result = importPgn(MOCK_PGN);
     if ('error' in result) throw new Error(result.error);
     const layout = layoutTree(result.tree);
-    expect(layout.lines).toHaveLength(6);
-    expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].san).toBe('Nxe5');
+    expect(layout.lines).toHaveLength(9);
+    expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].san).toBe('Re3');
     expect(toPgn(result.tree)).toBe(MOCK_PGN);
   });
 
