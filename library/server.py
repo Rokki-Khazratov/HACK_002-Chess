@@ -118,7 +118,7 @@ class Handler(BaseHTTPRequestHandler):
             }).encode()
             request = urllib.request.Request(
                 "https://api.cerebras.ai/v1/chat/completions", data=data,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "ChessScope/0.1"},
                 method="POST",
             )
             ca_file = next((path for path in (
