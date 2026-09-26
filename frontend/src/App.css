@@ -4,8 +4,20 @@
   gap: var(--space-4);
   height: 100vh;
   padding: var(--space-4);
-  max-width: 1440px;
+  max-width: 1600px;
   margin: 0 auto;
+}
+
+.ui-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.ui-column.panel {
+  gap: 0;
 }
 
 /* ---------- Board column ---------- */
@@ -14,12 +26,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  container-type: size;
 }
 
 .board-frame {
-  --board-size: min(calc(100vh - 2 * var(--space-4) - 88px), calc(100vw - 440px - 3 * var(--space-4) - 40px));
+  /* Sized from the board column itself, so every layout variant fits. */
+  --board-size: min(calc(100cqw - 40px), calc(100cqh - 80px));
   display: grid;
   grid-template-columns: 28px var(--board-size);
   grid-template-rows: auto var(--board-size) auto;
@@ -398,6 +413,7 @@
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-2);
@@ -410,6 +426,7 @@
   background: none;
   font-weight: 520;
   font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -591,8 +608,9 @@
     padding: var(--space-2);
   }
 
-  .board-frame {
-    --board-size: calc(100vw - 2 * var(--space-2) - 36px);
+  .board-column {
+    height: calc(100vw + 60px);
+    flex: none;
   }
 
   .panel {
