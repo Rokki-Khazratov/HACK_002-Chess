@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#173643">
+  <title>ChessScope — Архив партий</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true">♞</div>
+      <div class="brand-name">ChessScope <span>/ архив</span></div>
+      <div class="masthead-caption">Локальная библиотека партий</div>
+    </header>
+
+    <div class="workspace">
+      <aside class="filters" id="filters">
+        <div class="filters-heading">
+          <span class="folio-label">ПОИСК / 01</span>
+          <h2>Фильтры</h2>
+          <button class="text-button" id="reset" type="button">Сбросить</button>
+        </div>
+
+        <div class="filter-section">
+          <label for="player-search">Игрок</label>
+          <div class="search-field"><span aria-hidden="true">⌕</span><input id="player-search" autocomplete="off" placeholder="Имя или FIDE ID"></div>
+          <div class="suggestions" id="player-suggestions" hidden></div>
+          <div class="color-tabs" role="group" aria-label="Цвет игрока">
+            <button type="button" data-color="both" class="active">Любой цвет</button>
+            <button type="button" data-color="white">Белыми</button>
+            <button type="button" data-color="black">Чёрными</button>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <label for="event-search">Турнир</label>
+          <div class="search-field"><span aria-hidden="true">⌕</span><input id="event-search" autocomplete="off" placeholder="Название турнира"></div>
+          <div class="suggestions" id="event-suggestions" hidden></div>
+          <p class="field-help">Начните вводить название и выберите турнир из списка.</p>
+        </div>
+
+        <div class="filter-section">
+          <label>Год партии</label>
+          <div class="year-fields">
+            <div><span>от</span><select id="year-from" aria-label="С какого года"><option value="">Все</option></select></div>
+            <span class="year-separator" aria-hidden="true">—</span>
+            <div><span>до</span><select id="year-to" aria-label="По какой год"><option value="">Все</option></select></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <label for="federation-search">Федерация / флаг</label>
+          <div class="search-field"><span aria-hidden="true">⚑</span><input id="federation-search" autocomplete="off" placeholder="Например, AUT"></div>
+          <div class="suggestions" id="federation-suggestions" hidden></div>
+          <p class="field-help">Флаг берётся из FIDE Standard за сентябрь 2026 или из PGN. Федерация игрока могла измениться.</p>
+        </div>
+
+        <button type="button" class="apply-button" id="apply">Показать партии <span aria-hidden="true">↗</span></button>
+        <div class="filter-footnote">Записи в архиве имеют разный уровень подтверждения. Статус каждой партии показан отдельно.</div>
+      </aside>
+
+      <main class="content">
+        <div class="page-header">
+          <div><span class="folio-label">КАТАЛОГ / ПАРТИИ</span><h1>Архив партий<span class="headline-dot">.</span></h1></div>
+          <div class="header-index"><span>ПАРТИЙ В КАТАЛОГЕ</span><strong id="archive-total">—</strong></div>
+        </div>
+
+        <div class="archive-note" role="note"><span class="note-symbol">i</span><p>Здесь показан весь импортированный архив; точные повторы объединены. Метка <strong>«Подтверждено»</strong> означает, что партия прошла строгую проверку FIDE, очного формата, классического контроля и рейтинга. Остальные записи полезны для просмотра и проверки источников.</p></div>
+
+        <div class="status-bar" role="tablist" aria-label="Статус проверки">
+          <button class="status-tab active" type="button" data-status="all" role="tab" aria-selected="true">Все записи <em id="count-all">—</em></button>
+          <button class="status-tab" type="button" data-status="accepted" role="tab" aria-selected="false">Подтверждено <em id="count-accepted">—</em></button>
+          <button class="status-tab" type="button" data-status="quarantine" role="tab" aria-selected="false">На проверке <em id="count-quarantine">—</em></button>
+          <button class="status-tab" type="button" data-status="rejected" role="tab" aria-selected="false">Исключено <em id="count-rejected">—</em></button>
+        </div>
+
+        <div class="results-toolbar">
+          <div><span class="results-eyebrow">НАЙДЕНО</span><strong id="results-count">—</strong><span class="results-noun">партий</span></div>
+          <label class="sort-label">Сортировать <select id="sort"><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option><option value="tournament">По турниру</option></select></label>
+        </div>
+        <div class="list-heading" aria-hidden="true"><span>ПАРТИЯ / ТУРНИР</span><span>ДАТА</span><span>ИТОГ</span><span>СТАТУС</span></div>
+        <div id="game-list" class="game-list" aria-live="polite"><div class="loading-state">Открываем архив…</div></div>
+        <div class="pagination"><button type="button" id="prev-page">← Назад</button><span id="page-label">—</span><button type="button" id="next-page">Вперёд →</button></div>
+      </main>
+    </div>
+  </div>
+
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <aside id="game-drawer" class="game-drawer" aria-label="Просмотр партии" aria-modal="true" role="dialog" hidden>
+    <div class="drawer-top"><div><span class="folio-label">ПРОСМОТР ПАРТИИ</span><h2 id="drawer-title">Партия</h2></div><button type="button" id="close-drawer" class="close-button" aria-label="Закрыть просмотр">×</button></div>
+    <div id="drawer-content" class="drawer-content"></div>
+  </aside>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 This repository is the HACK_002 Vienna hackathon workspace for a focused ChessScope demonstration. The idea is **not** a lightweight helper for Chess.com or Lichess accounts: it is a first, honest slice of an AI-native research and analysis workspace for FIDE-rated over-the-board players and coaches.
 
-The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch adds an executable, tested [database ingestion phase](docs/09-database-parsing.md). The web application, production corpus and payment integration remain unimplemented.
+The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch adds an executable, tested [database ingestion phase](docs/09-database-parsing.md) and a [local game library](docs/10-game-library.md) for examining the imported corpus. The production web application and payment integration remain unimplemented.
 
 ## The problem in one minute
 
@@ -33,6 +33,7 @@ The intended product journey is `landing → auth → payment → dashboard → 
 7. [Feature horizons](docs/07-feature-horizons.md) — demo, professional release, and later platform.
 8. [References](docs/08-references.md) — pinned ChessScope source documents and external links.
 9. [Database parsing phase](docs/09-database-parsing.md) — acquisition, validation, official evidence, strict filtering and measured coverage.
+10. [Local game library](docs/10-game-library.md) — browse tournaments, players, years, federations, verification status and PGNs.
 
 The detailed product, architecture, backend, database, and phased specifications live in [ChessScope at the source revision used for this summary](https://github.com/Rokki-Khazratov/ChessScope/tree/3a990511f91aad55285270953179285a61df7b69). This repo deliberately links to that context instead of copying a large TЗ that would go stale.
 
