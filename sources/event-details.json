@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "about": "Hand-curated tournament facts that PGNs and FIDE rating reports do not carry. Every entry needs a public source_url. Match an event by its library name in `names` or by `fide_event_id`. prize_fund = {amount, currency, note, source_url}.",
+  "events": []
+}

@@ -12,6 +12,7 @@ import chess
 
 from ingestion.pgn import export_pgn
 from .build import country, fold
+from .tournaments import event_detail, list_events
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 RATINGS = Path(__file__).resolve().parent.parent / "frontend" / "public" / "ratings-sep26.json"
@@ -285,33 +286,13 @@ class Handler(BaseHTTPRequestHandler):
         self.json_response({"total": count, "page": page, "limit": limit, "games": rows})
 
     def list_tournaments(self, db, p):
-        q = p.get("q", "").strip()[:80]
-        page = safe_int(p.get("page"), 1, 1, 100000)
-        limit = safe_int(p.get("limit"), 30, 1, 60)
-        sort = p.get("sort", "games")
-        order = "ev.games DESC,ev.name" if sort != "name" else "ev.name_fold,ev.id"
-        where, args = "", []
-        if q:
-            match = fts_query(q)
-            if match:
-                where = " WHERE ev.id IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)"
-                args.append(match)
-        total = db.execute("SELECT count(*) FROM events ev" + where, args).fetchone()[0]
-        rows = db.execute("SELECT ev.id,ev.name,ev.games FROM events ev" + where +
-                          " ORDER BY " + order + " LIMIT ? OFFSET ?", args + [limit, (page - 1) * limit])
-        self.json_response({"total": total, "page": page, "limit": limit, "tournaments": [dict(r) for r in rows]})
+        self.json_response(list_events(db, self.library_path, self.corpus_path, p, fts_query, safe_int))
 
     def tournament_detail(self, db, event_id):
-        item = db.execute("SELECT id,name,games FROM events WHERE id=?", (event_id,)).fetchone()
-        if not item:
+        detail = event_detail(db, self.corpus_path, event_id)
+        if detail is None:
             self.json_response({"error": "Tournament not found"}, 404); return
-        summary = db.execute("""SELECT min(played_on) AS first_date,max(played_on) AS last_date,
-                    count(DISTINCT year) AS years,count(DISTINCT source_id) AS sources,
-                    sum(result='1-0') AS white_wins,sum(result='0-1') AS black_wins,
-                    sum(result='1/2-1/2') AS draws FROM games WHERE event_id=?""", (event_id,)).fetchone()
-        years = [dict(r) for r in db.execute("""SELECT year,count(*) AS games FROM games
-                    WHERE event_id=? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 30""", (event_id,))]
-        self.json_response(dict(item) | dict(summary) | {"years": years})
+        self.json_response(detail)
 
     def game_detail(self, db, game_id, pgn):
         item = db.execute("""SELECT g.*,ev.name AS tournament FROM games g

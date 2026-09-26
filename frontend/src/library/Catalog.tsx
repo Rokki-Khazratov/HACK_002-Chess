@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import type { Navigate } from '../Root';
 import { PlayerAvatar } from '../components/PlayerAvatar';
 import { formatNumber, getJson } from './api';
-import type { GameList, GameSummary, Overview, PlayerDetail, TournamentDetail, TournamentList } from './api';
+import type { GameList, GameSummary, Overview, Participant, PlayerDetail, TournamentDetail, TournamentList, TournamentSource } from './api';
 
 type Filters = {
   player: string; event: string; yearFrom: string; yearTo: string; federation: string;
@@ -116,30 +116,249 @@ export function GamesPage({ navigate }: { navigate: Navigate }) {
   </main>;
 }
 
+type TournamentFilters = {
+  q: string; player: string; site: string; yearFrom: string; yearTo: string;
+  minAvgElo: string; minPlayers: string; source: string; status: string;
+};
+const emptyTournamentFilters: TournamentFilters = { q:'', player:'', site:'', yearFrom:'', yearTo:'', minAvgElo:'', minPlayers:'', source:'', status:'' };
+const tournamentParams: [keyof TournamentFilters, string][] = [
+  ['q', 'q'], ['player', 'player'], ['site', 'site'], ['yearFrom', 'year_from'], ['yearTo', 'year_to'],
+  ['minAvgElo', 'min_avg_elo'], ['minPlayers', 'min_players'], ['source', 'source'], ['status', 'status'],
+];
+const tournamentSources: TournamentSource[] = ['fide-official', 'broadcast'];
+const tournamentSorts: [string, string][] = [
+  ['games', 'Most games'], ['newest', 'Newest'], ['oldest', 'Oldest'], ['avg_elo', 'Highest average Elo'], ['players', 'Most players'], ['name', 'Name'],
+];
+const TOURNAMENT_LIMIT = 30;
+
+/** Normalises one filter value; anything outside the API contract becomes '' and is not sent. */
+function cleanTournamentValue(key: keyof TournamentFilters, raw: string | null) {
+  const value = (raw ?? '').trim();
+  if (key === 'yearFrom' || key === 'yearTo') return /^\d{4}$/.test(value) ? value : '';
+  if (key === 'minAvgElo' || key === 'minPlayers') return /^\d+$/.test(value) ? value : '';
+  if (key === 'source') return tournamentSources.includes(value as TournamentSource) ? value : '';
+  if (key === 'status') return value === 'accepted' ? value : '';
+  return value;
+}
+
+function tournamentFilterParams(filters: TournamentFilters) {
+  const params = new URLSearchParams();
+  for (const [key, param] of tournamentParams) {
+    const value = cleanTournamentValue(key, filters[key]);
+    if (value) params.set(param, value);
+  }
+  return params;
+}
+
+function readTournamentUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const filters = { ...emptyTournamentFilters };
+  for (const [key, param] of tournamentParams) filters[key] = cleanTournamentValue(key, params.get(param));
+  const sortParam = params.get('sort') || '';
+  const sort = tournamentSorts.some(([value]) => value === sortParam) ? sortParam : 'games';
+  const page = Math.max(1, Number.parseInt(params.get('page') || '1', 10) || 1);
+  return { filters, sort, page };
+}
+
+function dateRange(from: string | null | undefined, to: string | null | undefined) {
+  if (from && to) return from === to ? from : `${from} – ${to}`;
+  return from || to || '';
+}
+
+function plural(count: number, word: string) { return `${formatNumber(count)} ${count === 1 ? word : `${word}s`}`; }
+function safeUrl(url: string | null | undefined) { return url && /^https?:\/\//i.test(url) ? url : null; }
+
+/** In-app navigation that still lets modifier clicks open the real href. */
+function internalLink(navigate: Navigate, path: string) {
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate(path);
+  };
+}
+
+function yearField(label: string, value: string, onChange: (value: string) => void, years: number[]) {
+  const options = value && !years.includes(Number(value)) ? [Number(value), ...years] : years;
+  return <label className="catalog-field"><span>{label}</span><select value={value} onChange={(e) => onChange(e.target.value)}><option value="">Any</option>{options.map((year) => <option key={year} value={String(year)}>{year}</option>)}</select></label>;
+}
+
+function numberField(label: string, value: string, onChange: (value: string) => void, placeholder: string) {
+  return <label className="catalog-field"><span>{label}</span><input value={value} inputMode="numeric" onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))} placeholder={placeholder} /></label>;
+}
+
 export function TournamentsPage({ navigate }: { navigate: Navigate }) {
-  const [draft, setDraft] = useState('');
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('games');
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<TournamentList | null>(null);
-  const [error, setError] = useState('');
+  const [initial] = useState(readTournamentUrl);
+  const [draft, setDraft] = useState<TournamentFilters>(initial.filters);
+  const [applied, setApplied] = useState<TournamentFilters>(initial.filters);
+  const [sort, setSort] = useState(initial.sort);
+  const [page, setPage] = useState(initial.page);
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [response, setResponse] = useState<{ key: string; data: TournamentList } | null>(null);
+  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const filterQuery = useMemo(() => tournamentFilterParams(applied).toString(), [applied]);
+  const search = useMemo(() => {
+    const params = new URLSearchParams(filterQuery);
+    params.set('sort', sort); params.set('page', String(page)); params.set('limit', String(TOURNAMENT_LIMIT));
+    return params.toString();
+  }, [filterQuery, sort, page]);
+  const data = response?.key === search ? response.data : null;
+  const error = failure?.key === search ? failure.message : '';
+  const extraOpen = Boolean(initial.filters.minAvgElo || initial.filters.minPlayers || initial.filters.source || initial.filters.status);
+
   useEffect(() => {
     const controller = new AbortController();
-    const p = new URLSearchParams({ q:search, sort, page:String(page), limit:'30' });
-    getJson<TournamentList>(`/api/tournaments?${p}`, controller.signal).then(setData).catch((e: Error) => { if (!controller.signal.aborted) setError(e.message); });
+    getJson<Overview>('/api/overview', controller.signal).then(setOverview).catch(() => {});
     return () => controller.abort();
-  }, [search, sort, page]);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getJson<TournamentList>(`/api/tournaments?${search}`, controller.signal).then((next) => setResponse({ key:search, data:next })).catch((e: Error) => {
+      if (!controller.signal.aborted) setFailure({ key:search, message:e.message });
+    });
+    return () => controller.abort();
+  }, [search]);
+
+  // Mirror the applied state into the address bar so a filtered list survives refresh and can be shared.
+  useEffect(() => {
+    if (window.location.pathname !== '/tournaments') return;
+    const params = new URLSearchParams(filterQuery);
+    if (sort !== 'games') params.set('sort', sort);
+    if (page > 1) params.set('page', String(page));
+    const qs = params.toString();
+    const next = `/tournaments${qs ? `?${qs}` : ''}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(window.history.state, '', next);
+  }, [filterQuery, sort, page]);
+
+  const years = overview?.years.map((item) => item.year) || [];
+  const update = (key: keyof TournamentFilters) => (value: string) => setDraft((prior) => ({ ...prior, [key]:value }));
+  const submit = (event: FormEvent) => { event.preventDefault(); setPage(1); setApplied({ ...draft }); };
+  const reset = () => { setDraft({ ...emptyTournamentFilters }); setApplied({ ...emptyTournamentFilters }); setPage(1); };
+
   return <main className="catalog-page">
-    <div className="catalog-intro"><div><h1>Tournaments</h1><p>Events from imported PGNs. Open one for dates, results and games.</p></div></div>
-    <form className="tournament-search" onSubmit={(e) => { e.preventDefault(); setPage(1); setSearch(draft); }}>
-      {field('Name', draft, setDraft, 'Find a tournament')}
-      <label className="catalog-field"><span>Sort</span><select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}><option value="games">Most games</option><option value="name">Name</option></select></label>
-      <button type="submit" className="primary-button">Search</button>
+    <div className="catalog-intro"><div><h1>Tournaments</h1><p>Events from imported PGNs. Open one for standings, ratings and games.</p></div></div>
+    <form className="catalog-filters" onSubmit={submit}>
+      <div className="filter-primary">
+        {field('Name', draft.q, update('q'), 'Tournament name')}
+        {field('Player', draft.player, update('player'), 'Name or FIDE ID')}
+        {field('Location', draft.site, update('site'), 'Wijk aan Zee, Germany')}
+        {yearField('Year from', draft.yearFrom, update('yearFrom'), years)}
+        {yearField('Year to', draft.yearTo, update('yearTo'), years)}
+      </div>
+      <details className="filter-more" open={extraOpen || undefined}><summary>More filters</summary>
+        <div className="filter-extra">
+          {numberField('Min average Elo', draft.minAvgElo, update('minAvgElo'), '2500')}
+          {numberField('Min players', draft.minPlayers, update('minPlayers'), '10')}
+          <label className="catalog-field"><span>Source</span><select value={draft.source} onChange={(e) => update('source')(e.target.value)}><option value="">Any</option><option value="fide-official">FIDE PGN</option><option value="broadcast">Broadcast</option></select></label>
+          <label className="catalog-field"><span>Verification</span><select value={draft.status} onChange={(e) => update('status')(e.target.value)}><option value="">Any</option><option value="accepted">Only verified classical</option></select></label>
+        </div>
+      </details>
+      <div className="filter-actions"><button className="primary-button" type="submit">Search</button><button className="quiet-button" type="button" onClick={reset}>Reset</button></div>
     </form>
-    <div className="catalog-results-head"><div><strong>{data ? formatNumber(data.total) : '—'}</strong><span>events</span></div></div>
-    {error ? <div className="catalog-empty">Load error: {error}</div> : !data ? <div className="catalog-empty">Loading tournaments…</div> : data.tournaments.length ? <div className="tournament-rows">{data.tournaments.map((item) => <a key={item.id} href={`/tournaments/${item.id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(`/tournaments/${item.id}`); }}><strong>{item.name}</strong><span>{formatNumber(item.games)} games</span><span aria-hidden="true">→</span></a>)}</div> : <div className="catalog-empty">No tournaments match this search.</div>}
-    {data && <Pager page={page} total={data.total} limit={30} onPage={(next) => { setPage(next); window.scrollTo(0, 0); }} />}
+
+    <div className="catalog-results-head"><div><strong>{data ? formatNumber(data.total) : '—'}</strong><span>events</span></div>
+      <label>Sort <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>{tournamentSorts.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+    {error ? <div className="catalog-empty">Load error: {error}</div> : !data ? <div className="catalog-empty">Loading tournaments…</div> : data.tournaments.length ? <div className="tournament-list">
+      {data.tournaments.map((item) => {
+        const verified = item.accepted_games > 0;
+        const fide = verified || Boolean(item.source_kinds?.includes('fide-official'));
+        const meta = [item.site, dateRange(item.first_date, item.last_date) || 'Date unknown'].filter(Boolean).join(' · ');
+        return <a key={item.id} className="tournament-list-row" href={`/tournaments/${item.id}`} onClick={internalLink(navigate, `/tournaments/${item.id}`)}>
+          <span className="tournament-list-main">
+            <span className="tournament-list-title"><strong>{item.name}</strong>{fide && <span className="fide-badge" title={verified ? `${plural(item.accepted_games, 'game')} verified as official FIDE-rated classical` : 'Games from the official FIDE PGN download'}>FIDE</span>}</span>
+            <span className="tournament-list-meta">{meta}</span>
+          </span>
+          <span className="tournament-list-stat tournament-list-players">{plural(item.players, 'player')}</span>
+          <span className="tournament-list-stat tournament-list-elo" title="Average Elo of rated participants">{item.avg_elo ? `Ø ${item.avg_elo}` : '—'}</span>
+          <span className="tournament-list-stat">{plural(item.games, 'game')}</span>
+          <span className="row-arrow" aria-hidden="true">→</span>
+        </a>;
+      })}
+    </div> : <div className="catalog-empty">No tournaments match these filters. Try changing them.</div>}
+    {data && <Pager page={page} total={data.total} limit={TOURNAMENT_LIMIT} onPage={(next) => { setPage(next); window.scrollTo(0, 0); }} />}
   </main>;
+}
+
+type StandingsKey = 'rank' | 'rating' | 'live' | 'points' | 'perf';
+type StandingsSort = { key: StandingsKey; desc: boolean };
+const standingsValue: Record<StandingsKey, (p: Participant) => number | null> = {
+  rank: (p) => p.rank, rating: (p) => p.event_rating, live: (p) => p.live_rating, points: (p) => p.points, perf: (p) => p.performance,
+};
+
+/** Sorts a copy; missing values always go last, ties fall back to the standings rank. */
+function sortParticipants(list: Participant[], { key, desc }: StandingsSort) {
+  const get = standingsValue[key];
+  return [...list].sort((a, b) => {
+    const x = get(a) ?? null;
+    const y = get(b) ?? null;
+    if (x === null || y === null) return x === y ? a.rank - b.rank : x === null ? 1 : -1;
+    return (desc ? y - x : x - y) || a.rank - b.rank;
+  });
+}
+
+function formatPoints(points: number) {
+  const whole = Math.floor(points + 1e-9);
+  const half = points - whole >= 0.25;
+  if (!half) return String(whole);
+  return whole === 0 ? '½' : `${whole}½`;
+}
+
+function formatMoney(amount: number, currency: string) {
+  try { return new Intl.NumberFormat('en-US', { style:'currency', currency, minimumFractionDigits:0, maximumFractionDigits:0 }).format(amount); }
+  catch { return `${formatNumber(amount)} ${currency}`; }
+}
+
+function RatingChange({ value }: { value: number | null }) {
+  if (value === null || value === undefined) return null;
+  const rounded = Math.round(value * 10) / 10;
+  if (rounded === 0) return <span className="standings-change ratings-muted">0</span>;
+  return <span className={`standings-change ${rounded > 0 ? 'ratings-up' : 'ratings-down'}`}>{rounded > 0 ? '+' : '−'}{Math.abs(rounded).toFixed(1)}</span>;
+}
+
+function SortHeader({ label, column, sort, onSort, title }: { label: string; column: StandingsKey; sort: StandingsSort; onSort: (key: StandingsKey) => void; title?: string }) {
+  const active = sort.key === column;
+  return <th aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'} title={title}>
+    <button type="button" className={active ? 'standings-sort active' : 'standings-sort'} onClick={() => onSort(column)}>{label}<span aria-hidden="true">{active ? (sort.desc ? ' ↓' : ' ↑') : ''}</span></button>
+  </th>;
+}
+
+function ParticipantName({ participant: p, navigate }: { participant: Participant; navigate: Navigate }) {
+  const flag = p.federation === 'RUS' ? '🏳️' : p.flag;
+  const detail = [p.federation, p.fide_id ? `FIDE ${p.fide_id}` : null].filter(Boolean).join(' · ');
+  const body = <><PlayerAvatar id={p.fide_id} name={p.name} /><span>
+    {flag && <span className="catalog-flag" aria-hidden="true">{flag}</span>}{p.title && <span className="title-badge">{p.title}</span>}{p.name}
+    {detail && <small>{detail}</small>}
+  </span></>;
+  if (!p.fide_id) return <span className="ratings-player standings-player">{body}</span>;
+  return <a className="ratings-player standings-player" href={`/players/${p.fide_id}`} onClick={internalLink(navigate, `/players/${p.fide_id}`)}>{body}</a>;
+}
+
+function StandingsTable({ participants, navigate }: { participants: Participant[]; navigate: Navigate }) {
+  const [sort, setSort] = useState<StandingsSort>({ key:'rank', desc:false });
+  const rows = useMemo(() => sortParticipants(participants, sort), [participants, sort]);
+  const onSort = (key: StandingsKey) => setSort((prior) => prior.key === key ? { key, desc:!prior.desc } : { key, desc:key !== 'rank' });
+  return <div className="ratings-table-wrap"><table className="ratings-table standings-table">
+    <thead><tr>
+      <SortHeader label="#" column="rank" sort={sort} onSort={onSort} title="Standing" />
+      <th>Player</th>
+      <SortHeader label="Rating" column="rating" sort={sort} onSort={onSort} title="Rating at this tournament" />
+      <SortHeader label="Live" column="live" sort={sort} onSort={onSort} title="Tournament rating plus the rating change from this event's games" />
+      <th title="Latest imported FIDE classical rating">FIDE</th>
+      <SortHeader label="Pts" column="points" sort={sort} onSort={onSort} title="Points: 1 per win, ½ per draw" />
+      <th title="Wins / draws / losses">W/D/L</th>
+      <SortHeader label="Perf" column="perf" sort={sort} onSort={onSort} title="Performance rating" />
+    </tr></thead>
+    <tbody>{rows.map((p) => <tr key={`${p.fide_id ?? p.name}-${p.rank}`}>
+      <td className="ratings-rank">{p.rank}</td>
+      <td><ParticipantName participant={p} navigate={navigate} /></td>
+      <td className="standings-num">{p.event_rating ?? '—'}</td>
+      <td className="standings-num"><span className="standings-live">{p.live_rating ?? '—'}</span><RatingChange value={p.rating_change} /></td>
+      <td className="standings-num" title={p.official_month ? `FIDE rating list ${p.official_month}` : undefined}>{p.official_rating ?? '—'}</td>
+      <td className="standings-num standings-points" title={`${p.points} from ${plural(p.games, 'game')}${p.buchholz !== null && p.buchholz !== undefined ? ` · Buchholz ${p.buchholz}` : ''}`}>{formatPoints(p.points)}</td>
+      <td className="standings-num ratings-muted">{p.wins} / {p.draws} / {p.losses}</td>
+      <td className="standings-num">{p.performance ?? '—'}</td>
+    </tr>)}</tbody>
+  </table></div>;
 }
 
 export function TournamentPage({ id, navigate }: { id: number; navigate: Navigate }) {
@@ -152,13 +371,49 @@ export function TournamentPage({ id, navigate }: { id: number; navigate: Navigat
     getJson<Overview>('/api/overview', controller.signal).then(setOverview).catch(() => {});
     return () => controller.abort();
   }, [id]);
-  if (error) return <main className="catalog-page"><div className="catalog-empty">{error}</div></main>;
+  if (error) return <main className="catalog-page"><button type="button" className="back-link" onClick={() => navigate('/tournaments')}>← All tournaments</button><div className="catalog-empty">{error}</div></main>;
   if (!detail) return <main className="catalog-page"><div className="catalog-empty">Loading tournament…</div></main>;
+
+  const participants = detail.participants ?? [];
+  const official = detail.official ?? null;
+  const prize = detail.prize_fund ?? null;
+  const range = dateRange(official?.start_date || detail.first_date, official?.end_date || detail.last_date);
+  const timeControl = detail.time_control || official?.time_control_text || null;
+  const subtitle = [detail.site, range, timeControl, detail.rounds ? plural(detail.rounds, 'round') : null].filter(Boolean).join(' · ');
+  const links: { url: string; label: string }[] = [];
+  for (const [url, label] of [[official?.fide_details_url, 'FIDE details'], [official?.fide_report_url, 'FIDE report'], [detail.broadcast_url, 'Broadcast']] as const) {
+    const safe = safeUrl(url);
+    if (safe) links.push({ url:safe, label });
+  }
+  const prizeSource = safeUrl(prize?.source_url);
+  const averageNote = [detail.category ? `Category ${detail.category}` : null, detail.avg_live ? `live Ø ${detail.avg_live}` : null].filter(Boolean).join(' · ');
+
   return <main className="catalog-page">
     <button type="button" className="back-link" onClick={() => navigate('/tournaments')}>← All tournaments</button>
-    <div className="catalog-intro"><div><h1>{detail.name}</h1><p>Records with this event name in imported PGNs. The name alone does not verify official event status.</p></div></div>
-    <div className="tournament-facts"><div><strong>{formatNumber(detail.games)}</strong><span>games</span></div><div><strong>{detail.first_date || '—'}</strong><span>first game</span></div><div><strong>{detail.last_date || '—'}</strong><span>last game</span></div><div><strong>{detail.sources}</strong><span>sources</span></div></div>
-    <div className="tournament-secondary"><span>Years: {detail.years.map((item) => `${item.year} (${formatNumber(item.games)})`).join(', ') || 'unknown'}</span><span>Results: {detail.white_wins || 0} / {detail.draws || 0} / {detail.black_wins || 0}</span></div>
+    <div className="catalog-intro"><div><h1>{detail.name}</h1><p>{subtitle || 'Dates unknown'}</p>
+      {!official && <p className="tournament-note">Records with this event name in imported PGNs. The name alone does not verify official event status.</p>}</div></div>
+    <div className="tournament-facts tournament-facts-wide">
+      <div><strong>{detail.avg_elo ?? '—'}</strong><span>average Elo</span>{averageNote && <small className="tournament-fact-note">{averageNote}</small>}</div>
+      <div><strong>{formatNumber(participants.length)}</strong><span>players</span></div>
+      <div><strong>{formatNumber(detail.games)}</strong><span>games</span></div>
+      <div>{prize ? <strong title={prize.note || undefined}>{formatMoney(prize.amount, prize.currency)}</strong> : <strong className="tournament-fact-muted" title="No prize fund in the imported sources">Not listed</strong>}
+        <span>prize fund{prizeSource && <> · <a href={prizeSource} target="_blank" rel="noopener noreferrer">source ↗</a></>}</span>
+        {prize?.note && <small className="tournament-fact-note">{prize.note}</small>}</div>
+      <div><strong>{detail.top_rating ?? '—'}</strong><span>top rating</span></div>
+    </div>
+    {links.length > 0 && <div className="tournament-links">{links.map(({ url, label }) => <a key={label} href={url} target="_blank" rel="noopener noreferrer">{label} ↗</a>)}</div>}
+    <div className="tournament-secondary">
+      <span>Years: {detail.years.map((item) => `${item.year} (${formatNumber(item.games)})`).join(', ') || 'unknown'}</span>
+      <span>Results: {detail.white_wins || 0} / {detail.draws || 0} / {detail.black_wins || 0}</span>
+      <span>Sources: {detail.sources}</span>
+      {detail.organizer && <span>Organizer: {detail.organizer}</span>}
+      {official && <span>FIDE event {official.fide_event_id}{official.name && official.name !== detail.name ? ` · ${official.name}` : ''}</span>}
+    </div>
+
+    <h2 className="section-title">Participants</h2>
+    {participants.length ? <StandingsTable participants={participants} navigate={navigate} /> : <div className="catalog-empty">No participant standings for this tournament yet.</div>}
+    {detail.standings_basis && <p className="standings-basis">{detail.standings_basis}</p>}
+
     <h2 className="section-title">Tournament games</h2><GameExplorer eventId={id} years={overview?.years.map((item) => item.year) || []} />
   </main>;
 }
