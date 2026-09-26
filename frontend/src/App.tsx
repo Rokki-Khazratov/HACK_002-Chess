@@ -7,6 +7,8 @@ import { AnalysisBoard } from './components/AnalysisBoard';
 import { ChatPanel } from './components/ChatPanel';
 import { EnginePanel } from './components/EnginePanel';
 import { EvalBar } from './components/EvalBar';
+import { BoardSettingsDialog } from './settings/BoardSettingsDialog';
+import { useBoardSettings, withAlpha } from './settings/boardSettings';
 import { LineChooser } from './components/LineChooser';
 import { MoveList } from './components/MoveList';
 import { ShortcutHelp } from './components/ShortcutHelp';
@@ -57,6 +59,8 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
   const [chooser, setChooser] = useState<{ forkId: string; index: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const boardSettings = useBoardSettings();
 
   const current = tree.nodes[currentId];
   const layout = useMemo(() => layoutTree(tree), [tree]);
@@ -149,7 +153,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('input, textarea') || pgnOpen || renaming) return;
+      if (target?.closest('input, textarea') || pgnOpen || renaming || settingsOpen) return;
       // Changing the position mid-drag would pull the square out from under the piece.
       if (document.querySelector('#analysis-board-board [aria-pressed="true"]')) return;
       // The promotion picker owns the keyboard until a piece is chosen or it is closed.
@@ -211,7 +215,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
   const arrows: Arrow[] = [];
   if (engineCurrent && engine.lines[0]?.pv[0]) {
     const best = engine.lines[0].pv[0];
-    arrows.push({ startSquare: best.slice(0, 2), endSquare: best.slice(2, 4), color: 'rgba(80, 150, 230, 0.8)' });
+    arrows.push({ startSquare: best.slice(0, 2), endSquare: best.slice(2, 4), color: withAlpha(boardSettings.arrowColor, 0.8) });
   }
   // Preview the move the chooser is pointing at.
   if (chooser) {
@@ -274,7 +278,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
     >
       <ChatPanel fen={current.fen} />
       <main className="board-column">
-        <div className="board-frame">
+        <div className={`board-frame${boardSettings.showEvalBar ? '' : ' board-frame-no-eval'}`}>
           <div className="player">
             <span className={`player-avatar player-avatar-${topColor}`} />
             {game && (topColor === 'white' ? game.white_id : game.black_id)
@@ -282,7 +286,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
               : topColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
             {game && <span className="player-rating">{topColor === 'white' ? game.white_rating : game.black_rating}</span>}
           </div>
-          <EvalBar score={bestScore} flipped={orientation === 'black'} />
+          {boardSettings.showEvalBar && <EvalBar score={bestScore} flipped={orientation === 'black'} />}
           <AnalysisBoard
             fen={current.fen}
             lastMove={current.from && current.to ? { from: current.from, to: current.to } : null}
@@ -296,6 +300,21 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
               ? <a className="board-player-link" href={`/players/${bottomColor === 'white' ? game.white_id : game.black_id}`}>{bottomColor === 'white' ? game.white_name : game.black_name}</a>
               : bottomColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
             {game && <span className="player-rating">{bottomColor === 'white' ? game.white_rating : game.black_rating}</span>}
+            <button
+              type="button"
+              className="board-settings-button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSettingsOpen(true);
+              }}
+              title="Доска и фигуры"
+              aria-label="Настройки доски и фигур"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
           </div>
         </div>
       </main>
@@ -451,6 +470,8 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
       )}
 
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+
+      {settingsOpen && <BoardSettingsDialog onClose={() => setSettingsOpen(false)} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

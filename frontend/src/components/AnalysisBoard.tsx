@@ -8,6 +8,8 @@ import {
 } from 'react-chessboard';
 import { Chess, type Square } from 'chess.js';
 import type { MoveInput } from '../chess/tree';
+import { boardLook, pieceUrl } from '../settings/boardLook';
+import { PIECE_SETS, useBoardSettings } from '../settings/boardSettings';
 
 interface Props {
   fen: string;
@@ -98,8 +100,12 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     setSelected(piece && piece.pieceType[0] === turn && selected !== square ? (square as Square) : null);
   };
 
+  const settings = useBoardSettings();
+  const look = boardLook(settings);
+  const pieceDir = PIECE_SETS.find((set) => set.id === settings.pieceSet)?.dir;
+
   const squareStyles: Record<string, CSSProperties> = {};
-  if (lastMove) {
+  if (lastMove && settings.highlightMoves) {
     squareStyles[lastMove.from] = { background: 'var(--board-lastMove-from)' };
     squareStyles[lastMove.to] = { background: 'var(--board-lastMove)' };
   }
@@ -116,7 +122,7 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
       background: 'var(--board-selected)',
       boxShadow: 'inset 0 0 0 3px var(--board-selected-ring)',
     };
-    for (const move of position.moves({ square: selected, verbose: true })) {
+    for (const move of settings.showLegalMoves ? position.moves({ square: selected, verbose: true }) : []) {
       squareStyles[move.to] = move.isCapture()
         ? { background: 'radial-gradient(circle, transparent 58%, var(--board-legalMove) 60%)' }
         : { background: 'radial-gradient(circle, var(--board-legalMove) 22%, transparent 24%)' };
@@ -135,13 +141,10 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     },
     squareStyles,
     arrows,
-    animationDurationInMs: 180,
-    showNotation: true,
+    ...look.options,
     allowDragging: true,
     // Keep a dragged piece within half a square of the board edge.
     allowDragOffBoard: false,
-    lightSquareStyle: { backgroundColor: 'var(--board-light)' },
-    darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
   };
 
   const whiteToMove = position.turn() === 'w';
@@ -150,7 +153,7 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     // A clicked piece keeps focus, and dnd-kit would pick it up on Space/Enter and
     // then steer it with the arrow keys the app uses for navigation. Stop those keys
     // before they reach the piece; the app's own shortcuts listen in the capture phase.
-    <div className="board" onKeyDownCapture={blockKeyboardDrag}>
+    <div className="board" style={look.vars} onKeyDownCapture={blockKeyboardDrag}>
       <Chessboard options={options} />
       {promotion && (
         <div className="dialog-backdrop" onClick={() => setPending(null)}>
@@ -167,7 +170,9 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
                     setPending(null);
                   }}
                 >
-                  {whiteToMove ? white : black}
+                  {pieceDir ? (
+                    <img className="promotion-piece" src={pieceUrl(pieceDir, `${whiteToMove ? 'w' : 'b'}${piece.toUpperCase()}`)} alt="" />
+                  ) : whiteToMove ? white : black}
                 </button>
               ))}
             </div>
