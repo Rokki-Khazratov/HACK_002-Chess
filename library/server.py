@@ -3,6 +3,7 @@ import json
 import mimetypes
 import re
 import sqlite3
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -13,11 +14,19 @@ from ingestion.pgn import export_pgn
 from .build import country, fold
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+RATINGS = Path(__file__).resolve().parent.parent / "frontend" / "public" / "ratings-sep26.json"
 STATUS = {"all", "accepted", "quarantine", "rejected"}
 SORT = {"newest": "g.played_on DESC,g.id DESC", "oldest": "g.played_on ASC,g.id ASC",
         "tournament": "ev.name_fold ASC,g.played_on DESC,g.id DESC",
         "rating": "COALESCE(g.white_rating,0)+COALESCE(g.black_rating,0) DESC,g.played_on DESC",
         "longest": "g.ply_count DESC,g.played_on DESC"}
+
+
+@lru_cache(maxsize=1)
+def ranked_players():
+    if not RATINGS.is_file():
+        return {}
+    return {row["fideId"]: row for row in json.loads(RATINGS.read_text())}
 
 
 def connect_readonly(path):
@@ -76,10 +85,10 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response({"error": str(exc)}, 400)
         except Exception as exc:
             self.log_error("request failed: %s", exc)
-            self.json_response({"error": "Не удалось открыть данные. Проверьте локальный журнал сервера."}, 500)
+            self.json_response({"error": "Could not open the data. Check the local server log."}, 500)
 
     def static(self, path):
-        if path == "/" or path == "/analysis" or path == "/tournaments" or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
+        if path in {"/", "/analysis", "/tournaments", "/ratings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
             file = DIST / "index.html"
         else:
             file = (DIST / path.lstrip("/")).resolve()
@@ -90,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(file.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache" if file.name == "index.html" else "public, max-age=3600")
+        self.send_header("Cache-Control", "no-cache" if file.name in {"index.html", "ratings-sep26.json"} else "public, max-age=3600")
         self.end_headers()
         self.wfile.write(body)
 
@@ -135,15 +144,21 @@ class Handler(BaseHTTPRequestHandler):
             fide_id = int(player.group(1))
             row = db.execute("""SELECT fide_id,name,federation,federation_basis FROM players
                                 WHERE fide_id=? ORDER BY games DESC LIMIT 1""", (fide_id,)).fetchone()
-            if not row:
-                self.json_response({"error": "Игрок не найден"}, 404); return
+            ranked = ranked_players().get(fide_id)
+            if not row and not ranked:
+                self.json_response({"error": "Player not found"}, 404); return
             games = db.execute("""SELECT count(*) FROM games WHERE white_id=? OR black_id=?""",
                                (fide_id, fide_id)).fetchone()[0]
-            self.json_response(dict(row) | {"games": games, "flag": country(row["federation"])[1]}); return
+            profile = dict(row) if row else {"fide_id": fide_id, "name": ranked["name"],
+                                              "federation": ranked["federation"], "federation_basis": "fide-rating-list"}
+            profile.update({"games": games, "flag": country(profile["federation"])[1],
+                            "official_rating": ranked["rating"] if ranked else None,
+                            "rating_month": "September 2026" if ranked else None})
+            self.json_response(profile); return
         if path == "/api/federations":
             q = p.get("q", "").upper()[:3]
             rows = db.execute("SELECT code,games,flag FROM federations WHERE code LIKE ? ORDER BY games DESC LIMIT 30", (q + "%",))
-            self.json_response([dict(r) for r in rows]); return
+            self.json_response([dict(r) | {"flag": country(r["code"])[1]} for r in rows]); return
         if path == "/api/games":
             self.list_games(db, p); return
         if path == "/api/tournaments":
@@ -154,19 +169,19 @@ class Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/games/(\d+)(/pgn)?", path)
         if match:
             self.game_detail(db, int(match.group(1)), bool(match.group(2))); return
-        self.json_response({"error": "Неизвестный адрес"}, 404)
+        self.json_response({"error": "Unknown endpoint"}, 404)
 
     def list_games(self, db, p):
         where, args = [], []
         status = p.get("status", "all")
         if status not in STATUS:
-            raise ValueError("Недопустимый статус")
+            raise ValueError("Invalid status")
         if status != "all":
             where.append("g.status=?"); args.append(status)
         first = safe_int(p.get("from"), 0, 0, 2100)
         last = safe_int(p.get("to"), 2100, 0, 2100)
         if first > last:
-            raise ValueError("Начальный год больше конечного")
+            raise ValueError("Start year is later than end year")
         if first:
             where.append("g.year>=?"); args.append(first)
         if last < 2100:
@@ -175,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
             value = p.get(key, "")
             if value:
                 if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-                    raise ValueError("Дата должна быть в формате ГГГГ-ММ-ДД")
+                    raise ValueError("Date must be in YYYY-MM-DD format")
                 where.append(f"g.played_on{operator}?"); args.append(value)
         event_id = p.get("event_id", "")
         if event_id.isdigit():
@@ -188,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         player = p.get("player_id", "")
         color = p.get("color", "both")
         if color not in {"both", "white", "black"}:
-            raise ValueError("Недопустимый цвет")
+            raise ValueError("Invalid color")
         if player.isdigit():
             field = {"white": "white_id", "black": "black_id"}.get(color)
             if field:
@@ -209,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
         federation = p.get("federation", "").upper()
         if federation:
             if not re.fullmatch(r"[A-Z]{3}", federation):
-                raise ValueError("Федерация должна быть трёхбуквенным кодом")
+                raise ValueError("Federation must be a three-letter code")
             field = {"white": "white_fed", "black": "black_fed"}.get(color)
             def federation_branch(column):
                 parts, values = [f"{column}=?"], [federation]
@@ -232,12 +247,12 @@ class Handler(BaseHTTPRequestHandler):
         result = p.get("result", "")
         if result:
             if result not in {"1-0", "0-1", "1/2-1/2", "*"}:
-                raise ValueError("Недопустимый результат")
+                raise ValueError("Invalid result")
             where.append("g.result=?"); args.append(result)
         source_kind = p.get("source", "")
         if source_kind:
             if source_kind not in {"fide-official", "broadcast"}:
-                raise ValueError("Недопустимый источник")
+                raise ValueError("Invalid source")
             where.append("g.source_kind=?"); args.append(source_kind)
         minimum_rating = safe_int(p.get("min_rating"), 0, 0, 3500)
         if minimum_rating:
@@ -246,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
         eco = p.get("eco", "").strip().upper()[:3]
         if eco:
             if not re.fullmatch(r"[A-E][0-9]{0,2}", eco):
-                raise ValueError("ECO: буква A–E и до двух цифр")
+                raise ValueError("ECO must be A–E followed by up to two digits")
             upper = eco[:-1] + chr(ord(eco[-1]) + 1)
             where.append("g.id IN (SELECT id FROM games INDEXED BY games_eco WHERE eco>=? AND eco<?)")
             args.extend([eco, upper])
@@ -289,7 +304,7 @@ class Handler(BaseHTTPRequestHandler):
     def tournament_detail(self, db, event_id):
         item = db.execute("SELECT id,name,games FROM events WHERE id=?", (event_id,)).fetchone()
         if not item:
-            self.json_response({"error": "Турнир не найден"}, 404); return
+            self.json_response({"error": "Tournament not found"}, 404); return
         summary = db.execute("""SELECT min(played_on) AS first_date,max(played_on) AS last_date,
                     count(DISTINCT year) AS years,count(DISTINCT source_id) AS sources,
                     sum(result='1-0') AS white_wins,sum(result='0-1') AS black_wins,
@@ -302,12 +317,12 @@ class Handler(BaseHTTPRequestHandler):
         item = db.execute("""SELECT g.*,ev.name AS tournament FROM games g
                              JOIN events ev ON ev.id=g.event_id WHERE g.id=?""", (game_id,)).fetchone()
         if not item:
-            self.json_response({"error": "Партия не найдена"}, 404); return
+            self.json_response({"error": "Game not found"}, 404); return
         with connect_readonly(self.corpus_path) as corpus:
             record = corpus.execute("SELECT * FROM games WHERE source_id=? AND member=? AND ordinal=?",
                                     (item["source_id"], item["member"], item["ordinal"])).fetchone()
             if not record:
-                self.json_response({"error": "Исходная запись не найдена"}, 404); return
+                self.json_response({"error": "Source record not found"}, 404); return
             source = json.loads(corpus.execute("SELECT metadata_json FROM sources WHERE id=?",
                                                (item["source_id"],)).fetchone()[0])
             if pgn:

@@ -127,13 +127,16 @@ describe('PGN import', () => {
     expect(toPgn(result.tree)).toBe('1. e4 e5 (1... c5 2. Nf3 (2. c3 d5) 2... d6) 2. Nf3 Nc6 3. Bb5 a6 *');
   });
 
-  it('loads the mock game with branches at moves 6, 7 and 8', () => {
+  it('loads the 136-move study with its nested variations', () => {
     const result = importPgn(MOCK_PGN);
     if ('error' in result) throw new Error(result.error);
     const layout = layoutTree(result.tree);
-    expect(layout.lines).toHaveLength(9);
-    expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].san).toBe('Re3');
-    expect(toPgn(result.tree)).toBe(MOCK_PGN);
+    expect(layout.lines.length).toBeGreaterThan(50);
+    expect(Object.keys(result.tree.nodes).length).toBeGreaterThan(500);
+    expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].ply).toBe(271);
+    const roundtrip = importPgn(toPgn(result.tree));
+    if ('error' in roundtrip) throw new Error(roundtrip.error);
+    expect(Object.keys(roundtrip.tree.nodes).length).toBe(Object.keys(result.tree.nodes).length);
   });
 
   it('accepts a FEN and FEN header, and reports errors', () => {

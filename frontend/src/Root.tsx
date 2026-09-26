@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { GamesPage, TournamentsPage, TournamentPage, PlayerPage } from './library/Catalog';
+import { RatingsPage } from './library/RatingsPage';
 import './library/library.css';
 
 const App = lazy(() => import('./App'));
@@ -36,6 +37,7 @@ export default function Root() {
   else if (tournament) page = <TournamentPage key={tournament[1]} id={Number(tournament[1])} navigate={navigate} />;
   else if (player) page = <PlayerPage key={player[1]} id={Number(player[1])} navigate={navigate} />;
   else if (path === '/tournaments') page = <TournamentsPage navigate={navigate} />;
+  else if (path === '/ratings') page = <RatingsPage navigate={navigate} />;
   else if (path === '/analysis') page = <App />;
   else page = <GamesPage navigate={navigate} />;
 
@@ -44,11 +46,12 @@ export default function Root() {
       <a href="/" className="site-brand" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
         <span className="site-mark" aria-hidden="true">♞</span><span>ChessScope</span>
       </a>
-      <nav className="site-nav" aria-label="Основная навигация">
-        {link('/', 'Партии')}{link('/tournaments', 'Турниры')}{link('/analysis', 'Доска')}
+      <nav className="site-nav" aria-label="Main navigation">
+        {link('/', 'Games')}{link('/tournaments', 'Tournaments')}{link('/ratings', 'Ratings')}{link('/analysis', 'Board')}
+        <button type="button" className="site-link site-link-soon" disabled title="Prepare is coming soon">Prepare</button>
       </nav>
-      <span className="site-edition">Локальная библиотека</span>
+      <span className="site-edition">Local library</span>
     </header>
-    <Suspense fallback={<main className="catalog-page"><div className="catalog-empty">Загружаем доску…</div></main>}>{page}</Suspense>
+    <Suspense fallback={<main className="catalog-page"><div className="catalog-empty">Loading board…</div></main>}>{page}</Suspense>
   </div>;
 }

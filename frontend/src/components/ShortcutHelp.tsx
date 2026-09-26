@@ -2,9 +2,9 @@ const SHORTCUTS: [keys: string, action: string][] = [
   ['← / →', 'Previous / next move (→ at a fork opens the line chooser)'],
   ['↑ / ↓', 'In the chooser: pick a line'],
   ['Enter', 'Follow the chosen line'],
-  ['Ctrl + ↑ / ↓', 'Switch to the neighbouring line at the closest fork'],
-  ['Ctrl + ←', 'Jump back to the fork where the current line branched'],
-  ['Ctrl + →', 'Jump forward to the next fork (or the end of the line)'],
+  ['Mod + ↑ / ↓', 'Switch to the neighbouring line at the closest fork'],
+  ['Mod + ←', 'Jump back to the fork where the current line branched'],
+  ['Mod + →', 'Jump forward to the next fork (or the end of the line)'],
   ['Home / End', 'Start of the game / end of the current line'],
   ['T', 'Switch between move list and tree graph'],
   ['F', 'Flip the board'],
@@ -13,6 +13,7 @@ const SHORTCUTS: [keys: string, action: string][] = [
 ];
 
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  const modifier = /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? '⌘' : 'Ctrl';
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog" role="dialog" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()}>
@@ -22,7 +23,7 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
             {SHORTCUTS.map(([keys, action]) => (
               <tr key={keys}>
                 <td>
-                  <kbd>{keys}</kbd>
+                  <kbd>{keys.replace('Mod', modifier)}</kbd>
                 </td>
                 <td>{action}</td>
               </tr>

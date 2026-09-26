@@ -12,7 +12,8 @@ import pycountry
 
 from ingestion.acquire import sha256
 
-FIDE_ALIASES = {"NED": "NLD", "GER": "DEU", "SUI": "CHE", "KOS": "XKX"}
+FIDE_ALIASES = {"NED": "NLD", "GER": "DEU", "SUI": "CHE", "KOS": "XKX",
+                "IRI": "IRN", "VIE": "VNM", "BUL": "BGR", "SLO": "SVN", "GRE": "GRC"}
 GENERIC_EVENTS = {"?", "", "new tournament description", "playzone game", "open", "tournament", "game", "rated rapid game", "rated blitz game"}
 SCHEMA = """
 PRAGMA journal_mode=OFF;
@@ -42,6 +43,12 @@ def fold(value):
 def country(code):
     if not code or not re.fullmatch(r"[A-Z]{3}", code):
         return None, None
+    if code == "RUS":
+        return code, "🏳️"
+    if code == "FID":
+        return code, "🏳️"
+    if code == "ENG":
+        return code, "🏴"
     record = pycountry.countries.get(alpha_3=FIDE_ALIASES.get(code, code))
     if record:
         return code, record.flag

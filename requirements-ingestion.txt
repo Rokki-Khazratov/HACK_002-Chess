@@ -1,3 +1,4 @@
 chess==1.11.2
 zstandard==0.25.0
 pycountry==24.6.1
+Pillow==10.2.0
