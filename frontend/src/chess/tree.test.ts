@@ -103,6 +103,9 @@ describe('branch navigation and layout', () => {
     expect(switchLine(tree, nf3, -1)).toBe(find(tree, ['e4', 'e6', 'd4']));
     const c3 = find(tree, ['e4', 'c5', 'c3']);
     expect(switchLine(tree, c3, 1)).toBe(find(tree, ['e4', 'c5', 'Nf3']));
+    const e4 = find(tree, ['e4']);
+    expect(switchLine(tree, e4, 1)).toBe(find(tree, ['e4', 'c5']));
+    expect(switchLine(tree, e4, -1)).toBe(find(tree, ['e4', 'e6']));
   });
 
   it('lays out lines depth-first with the main line on lane 0', () => {
@@ -131,8 +134,8 @@ describe('PGN import', () => {
     const result = importPgn(MOCK_PGN);
     if ('error' in result) throw new Error(result.error);
     const layout = layoutTree(result.tree);
-    expect(layout.lines.length).toBeGreaterThan(50);
-    expect(Object.keys(result.tree.nodes).length).toBeGreaterThan(500);
+    expect(layout.lines.length).toBe(57);
+    expect(Object.keys(result.tree.nodes).length).toBe(575);
     expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].ply).toBe(271);
     const roundtrip = importPgn(toPgn(result.tree));
     if ('error' in roundtrip) throw new Error(roundtrip.error);

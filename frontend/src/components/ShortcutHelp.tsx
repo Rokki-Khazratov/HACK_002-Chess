@@ -1,13 +1,16 @@
 const SHORTCUTS: [keys: string, action: string][] = [
   ['← / →', 'Previous / next move (→ at a fork opens the line chooser)'],
-  ['↑ / ↓', 'In the chooser: pick a line'],
+  ['↑ / ↓', 'In Tree: switch to the neighbouring branch; in the chooser: pick a line'],
   ['Enter', 'Follow the chosen line'],
   ['Mod + ↑ / ↓', 'Switch to the neighbouring line at the closest fork'],
   ['Mod + ←', 'Jump back to the fork where the current line branched'],
   ['Mod + →', 'Jump forward to the next fork (or the end of the line)'],
+  ['[ / ]', 'Previous / next fork'],
   ['Home / End', 'Start of the game / end of the current line'],
   ['T', 'Switch between move list and tree graph'],
   ['F', 'Flip the board'],
+  ['C', 'Show or hide coach'],
+  ['Q', 'Show or hide move quality icons'],
   ['?', 'Show this help'],
   ['Esc', 'Close popups'],
 ];

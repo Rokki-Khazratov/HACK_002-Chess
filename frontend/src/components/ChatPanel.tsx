@@ -1,17 +1,19 @@
 interface Props {
   fen: string;
+  onClose?: () => void;
 }
 
 /**
  * Placeholder slot for the AI coach. It already receives the current position so
  * the future agent can be wired in without changing the board layout.
  */
-export function ChatPanel({ fen }: Props) {
+export function ChatPanel({ fen, onClose }: Props) {
   return (
     <section className="chat" aria-label="AI coach">
       <header className="chat-header">
         <span className="chat-title">Coach</span>
         <span className="chat-badge">coming soon</span>
+        {onClose && <button type="button" className="chat-close" onClick={onClose} title="Close coach (C)" aria-label="Close coach">×</button>}
       </header>
       <div className="chat-body">
         <p className="chat-hint">

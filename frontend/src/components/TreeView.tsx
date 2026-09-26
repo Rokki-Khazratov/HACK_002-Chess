@@ -2,11 +2,13 @@ import { type PointerEvent, type WheelEvent, useEffect, useMemo, useRef, useStat
 import { type TreeLayout, lineColor } from '../chess/layout';
 import { figurine } from '../chess/notation';
 import { type MoveTree, pathTo } from '../chess/tree';
+import type { MoveQuality } from '../chess/moveQuality';
 
 interface Props {
   tree: MoveTree;
   layout: TreeLayout;
   currentId: string;
+  qualities?: Record<string, MoveQuality>;
   onSelect: (nodeId: string) => void;
   onContextMenu: (nodeId: string, x: number, y: number) => void;
 }
@@ -17,7 +19,7 @@ const PAD_X = 36;
 const PAD_Y = 44;
 const NODE_W = 50;
 const NODE_H = 24;
-const MIN_ZOOM = 0.25;
+const MIN_ZOOM = 0.015;
 const MAX_ZOOM = 2.5;
 
 const nodeX = (ply: number) => PAD_X + ply * COL;
@@ -27,7 +29,7 @@ const nodeY = (lane: number) => PAD_Y + lane * ROW;
  * Pannable, zoomable graph of the move tree: columns are plies, rows are lines.
  * Drag to pan, wheel to zoom around the cursor, click a node to jump there.
  */
-export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: Props) {
+export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, onContextMenu }: Props) {
   const viewport = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [size, setSize] = useState({ w: 400, h: 300 });
@@ -211,12 +213,13 @@ export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: P
                   style={{ ['--line-color' as string]: lineColor(layout, node.id) }}
                   filter={isCurrent ? 'url(#tree-glow)' : undefined}
                 >
-                  <title>{`${node.san}${node.name ? ` — ${node.name}` : ''}`}</title>
+                  <title>{`${node.san}${node.name ? ` — ${node.name}` : ''}${qualities[node.id] ? ` · ${qualities[node.id]}` : ''}`}</title>
                   <rect x={x - NODE_W / 2} y={y - NODE_H / 2} width={NODE_W} height={NODE_H} rx={NODE_H / 2} />
                   <text x={x} y={y + 4} textAnchor="middle">
                     {piece}
                     {rest}
                   </text>
+                  {qualities[node.id] && <text className={`tree-quality tree-quality-${qualities[node.id]}`} x={x + NODE_W / 2 - 1} y={y - NODE_H / 2 + 3} textAnchor="middle">{qualities[node.id] === 'brilliant' ? '!!' : qualities[node.id] === 'blunder' ? '??' : qualities[node.id] === 'mistake' ? '?' : qualities[node.id] === 'inaccuracy' ? '?!' : qualities[node.id] === 'best' ? '★' : qualities[node.id] === 'excellent' ? '!' : '✓'}</text>}
                 </g>
               );
             })}
@@ -226,7 +229,8 @@ export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: P
       <div className="tree-controls">
         <button type="button" onClick={() => zoomAt(1.25, size.w / 2, size.h / 2)} title="Zoom in">+</button>
         <button type="button" onClick={() => zoomAt(0.8, size.w / 2, size.h / 2)} title="Zoom out">−</button>
-        <button type="button" onClick={fit} title="Fit whole tree">Fit</button>
+        <button type="button" onClick={() => setView({ k: 1, x: size.w / 2 - cx, y: size.h / 2 - cy })} title="Readable scale, center current move">1:1</button>
+        <button type="button" onClick={fit} title="Overview of whole tree; zoom in to read moves">Map</button>
         <button type="button" onClick={center} title="Center on current move">◎</button>
       </div>
     </div>

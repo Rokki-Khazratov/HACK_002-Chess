@@ -2,12 +2,15 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import type { TreeLayout } from '../chess/layout';
 import { lineColor } from '../chess/layout';
 import { type MoveNode, type MoveTree, isWhiteMove, moveNumberLabel } from '../chess/tree';
+import type { MoveQuality } from '../chess/moveQuality';
+import { MoveQualityBadge } from './MoveQualityBadge';
 import { San } from './San';
 
 interface Props {
   tree: MoveTree;
   layout: TreeLayout;
   currentId: string;
+  qualities?: Record<string, MoveQuality>;
   onSelect: (nodeId: string) => void;
   onContextMenu: (nodeId: string, x: number, y: number) => void;
 }
@@ -16,7 +19,7 @@ interface Props {
  * Main line as numbered rows; every side line as a collapsible block under the
  * move it replaces, with a coloured rail and label matching the tree graph.
  */
-export function MoveList({ tree, layout, currentId, onSelect, onContextMenu }: Props) {
+export function MoveList({ tree, layout, currentId, qualities = {}, onSelect, onContextMenu }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
 
@@ -50,7 +53,7 @@ export function MoveList({ tree, layout, currentId, onSelect, onContextMenu }: P
         onContextMenu(id, event.clientX, event.clientY);
       }}
     >
-      {label}
+      {label}{qualities[id] && <MoveQualityBadge quality={qualities[id]} />}
     </button>
   );
 

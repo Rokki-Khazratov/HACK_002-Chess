@@ -224,6 +224,9 @@ export function nextFork(tree: MoveTree, nodeId: string): string | null {
  * keeping the same depth below the fork when that line is long enough.
  */
 export function switchLine(tree: MoveTree, nodeId: string, direction: 1 | -1): string {
+  // At the fork itself, enter an adjacent variation rather than doing nothing.
+  const children = tree.nodes[nodeId].children;
+  if (children.length > 1) return children[direction === 1 ? 1 : children.length - 1];
   const fork = forkAbove(tree, nodeId);
   if (!fork) return nodeId;
   const siblings = tree.nodes[fork.forkId].children;

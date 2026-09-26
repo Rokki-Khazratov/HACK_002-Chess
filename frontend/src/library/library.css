@@ -20,7 +20,8 @@
 .game-page-heading h1 a:hover { color:var(--color-accent-primary); text-decoration:underline; }
 .game-page-context { font-size:11px; }
 .game-page .app { flex:1; width:100%; height:auto; min-height:0; padding-top:6px; }
-.game-page .board-frame { --board-size:min(calc(100cqw - 36px), calc(100dvh - 255px)); }
+.game-page .board-frame { --board-size:min(calc(100cqw - 48px), calc(100dvh - 278px)); }
+.game-result { color:var(--color-text-primary); font-weight:700; }
 .player-page-count { display:flex; flex-direction:column; align-items:flex-end; color:var(--color-text-tertiary); font-size:12px; }
 .player-page-count strong { color:var(--color-text-primary); font-size:24px; line-height:1.2; }
 .ratings-page { width:min(1260px,100%); }
