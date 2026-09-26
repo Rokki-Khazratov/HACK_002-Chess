@@ -27,4 +27,11 @@ The [ChessScope professional release slices](https://github.com/Rokki-Khazratov/
 
 ## Handoff convention
 
+The user requested a separate **database acquisition and parsing phase** on
+`parsing-DB`: official FIDE-linked OTB classical games above 1800 Elo, aiming at
+full obtainable coverage. [Phase DB-1](09-database-parsing.md) records the implemented
+pipeline, executed snapshot, strict qualification policy and unresolved global
+coverage. Its corpus run is broader than the small hackathon demonstration;
+completion of one imported archive does not mark the entire data phase complete.
+
 When code or a decision is added here later, update the narrowest relevant page and mark whether a claim is **implemented**, **demo-only**, **planned**, or **unresolved**. Link to original data/provider terms and the relevant ChessScope design. Do not present a prototype's limited source sample, engine capacity, or payment flow as production-scale evidence.

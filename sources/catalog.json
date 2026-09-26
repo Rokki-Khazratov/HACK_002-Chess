@@ -1,0 +1,91 @@
+{
+  "review_date": "2026-09-26",
+  "target": "FIDE-verified official OTB classical games; historical Standard rating >1800, both players by default",
+  "sources": [
+    {
+      "id": "fide-event-pgn",
+      "url": "https://ratings.fide.com/tournament_information.phtml?event=410577",
+      "role": "Official event metadata, roster, optional PGN download",
+      "status": "adapter_implemented_and_run",
+      "limitations": "PGNs are optional per event; no complete worldwide scoresheet archive established. Original response can append HTML. Redistribution permission is not established."
+    },
+    {
+      "id": "fide-standard-ratings",
+      "url": "https://ratings.fide.com/download_lists.phtml",
+      "role": "Official historical FIDE Standard ratings and identities",
+      "status": "importer_implemented; January and February 2026 imported",
+      "limitations": "Not PGNs. Current ratings must never replace historical ratings. Monthly TXT parser checks the embedded month when present."
+    },
+    {
+      "id": "lichess-broadcasts",
+      "url": "https://database.lichess.org/#broadcasts",
+      "role": "Bulk attributed tournament PGNs",
+      "license": "CC-BY-SA-4.0",
+      "status": "full_80_file_snapshot_downloaded_and_parsed",
+      "limitations": "Includes events whose OTB, classical and FIDE-rated status still needs verification. Do not confuse with the CC0 online database."
+    },
+    {
+      "id": "lumbra-otb",
+      "url": "https://lumbrasgigabase.com/en/download-in-pgn-format-en/",
+      "evidence_url": "https://lumbrasgigabase.com/en/faq-en/",
+      "license_advertised": "CC-BY-NC-SA-4.0",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "Missing time controls; correspondence included; historical identity corrections; commercial use requires a separate rights decision. Incorporates other collections, so counts overlap."
+    },
+    {
+      "id": "twic",
+      "url": "https://theweekinchess.com/twic",
+      "evidence_url": "https://theweekinchess.com/a-year-of-pgn-game-files",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "Tournament coverage includes rapid, blitz, online and nonstandard events. Shared commercial rights not established by a public download link."
+    },
+    {
+      "id": "caissabase-2024",
+      "url": "https://encroissant.org/docs/assets/databases",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "Mirror uses SQLite with encoded moves; conversion not implemented. Official identity, classical status, source rights and deduplication need separate evidence."
+    },
+    {
+      "id": "ajedrez-otb",
+      "url": "https://ajedrezdata.com/databases/otb/over-the-board-database-aj-otb-000/",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "PGN collection label does not establish event-level FIDE Standard eligibility or rights for shared redistribution."
+    },
+    {
+      "id": "millionbase",
+      "url": "https://encroissant.org/docs/assets/databases",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "Historical supplement; encoded SQLite mirror needs conversion; overlaps other collections."
+    },
+    {
+      "id": "pgn-mentor",
+      "url": "https://www.pgnmentor.com/files.html",
+      "status": "reviewed_candidate_not_imported",
+      "limitations": "Player/event selections, not a full eligible corpus. Event evidence and redistribution conditions unresolved."
+    },
+    {
+      "id": "codekiddy-otb",
+      "url": "https://sourceforge.net/projects/codekiddy-chess/files/Databases/Update4/",
+      "status": "candidate_from_user_research_not_reaudited",
+      "limitations": "Historical 2015 archive; OTB-HQ overlaps OTB. Elo threshold does not establish FIDE Standard rating. 7z extraction and metadata audit still needed."
+    },
+    {
+      "id": "kingbase-2019",
+      "url": "https://archive.org/details/KingBase2019",
+      "status": "candidate_from_user_research_availability_unconfirmed",
+      "limitations": "No verified current download, unique game count or event-level eligibility."
+    },
+    {
+      "id": "chessdb-historical",
+      "url": "https://sourceforge.net/projects/chessdb/files/databases%20of%20games/3.5%20million%20game%20database/",
+      "status": "candidate_from_user_research_not_reaudited",
+      "limitations": "2007 historical archive; binary conversion, overlaps, source rights and eligibility unresolved."
+    },
+    {
+      "id": "icofy-ib107",
+      "url": "https://sourceforge.net/projects/isschessoffice/files/ICOfY%20Base/IB107/",
+      "status": "candidate_from_user_research_not_reaudited",
+      "limitations": "2008 historical collection; tar extraction, corpus quality and rights unresolved; included in other aggregates."
+    }
+  ]
+}

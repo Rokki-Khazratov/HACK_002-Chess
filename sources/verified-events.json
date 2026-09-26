@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "events": [
+    {
+      "fide_event_id": "410577",
+      "name": "Tata Steel Chess 2026 - Masters",
+      "pgn_event_names": [
+        "Masters"
+      ],
+      "pgn_sites": [
+        "Wijk aan Zee, NL"
+      ],
+      "start_date": "2026-01-17",
+      "end_date": "2026-02-01",
+      "rating_type": "standard",
+      "otb": true,
+      "hybrid": false,
+      "player_ids": [
+        358878,
+        1039784,
+        2093596,
+        5072786,
+        12940690,
+        14204118,
+        14205483,
+        24116068,
+        24130737,
+        24651516,
+        25059530,
+        35009192,
+        44599790,
+        46616543
+      ],
+      "fide_report_url": "https://ratings.fide.com/report.phtml?event=410577",
+      "fide_details_url": "https://ratings.fide.com/tournament_information.phtml?event=410577",
+      "time_control_text": "Standard: 120 minutes for first 40 moves and 30 minutes with 30 seconds increment from move 40",
+      "evidence_sha256": {
+        "details": "0b7e38c17e970ee97999f9daccfad1c617144ffb1e58e61a5e9e09074f77cd89",
+        "report": "c72d408d4ac8f3c54b5fcd97212afc41aaa515312fa8d7502eb4afa04d0fcf01"
+      }
+    }
+  ]
+}
