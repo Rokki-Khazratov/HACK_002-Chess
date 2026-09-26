@@ -71,7 +71,8 @@ function storedTab(): PanelTab {
 }
 
 export default function App({ initialTree, game, onMockChange }: { initialTree?: MoveTree; game?: GameDetail; onMockChange?: (loaded: boolean) => void }) {
-  const [tree, setTree] = useState<MoveTree>(() => initialTree ?? createTree());
+  const [startTree] = useState<MoveTree>(() => initialTree ?? createTree());
+  const [tree, setTree] = useState<MoveTree>(startTree);
   const [currentId, setCurrentId] = useState(tree.rootId);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
   const [engineEnabled, setEngineEnabled] = useState(true);
@@ -109,6 +110,21 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       // Storage may be unavailable (private mode); the tab just isn't remembered.
     }
   }, [tab]);
+
+  // Moves, variations and marks live only in memory, so a reload (F5) or closing the tab
+  // asks first once the user has changed anything. Browsers show their own wording.
+  const root = tree.nodes[tree.rootId];
+  const unsaved = tree !== startTree && (Object.keys(tree.nodes).length > 1 || Boolean(root.shapes?.length));
+  useEffect(() => {
+    if (!unsaved) return;
+    const confirmLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Older Chromium and Safari still need returnValue set to show the dialog.
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', confirmLeave);
+    return () => window.removeEventListener('beforeunload', confirmLeave);
+  }, [unsaved]);
 
   useEffect(() => {
     if (!toast) return;
