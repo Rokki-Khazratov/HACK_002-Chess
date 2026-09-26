@@ -96,9 +96,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path != "/api/chat":
             self.json_response({"error": "Unknown endpoint"}, 404)
             return
-        api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+        api_key = os.environ.get("CEREBRAS_API_KEY", "").strip()
         if not api_key:
-            self.json_response({"error": "OpenRouter is not configured. Set OPENROUTER_API_KEY and restart the server."}, 503)
+            self.json_response({"error": "Cerebras is not configured. Set CEREBRAS_API_KEY and restart the server."}, 503)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -109,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
             if not message:
                 raise ValueError("Message is required")
             data = json.dumps({
-                "model": "qwen/qwen3.8-27b:free",
+                "model": os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b"),
                 "max_tokens": 256,
                 "messages": [
                     {"role": "system", "content": "You are a helpful assistant in ChessScope, a chess analysis workspace. For now, answer general questions clearly. The current board position is provided as context; do not claim to have inspected game databases or run an engine."},
@@ -117,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 ],
             }).encode()
             request = urllib.request.Request(
-                "https://openrouter.ai/api/v1/chat/completions", data=data,
+                "https://api.cerebras.ai/v1/chat/completions", data=data,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 method="POST",
             )
@@ -134,18 +134,24 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self.json_response({"error": str(exc)}, 400)
         except urllib.error.HTTPError as exc:
+            raw_error = exc.read().decode("utf-8", errors="replace").replace(api_key, "[redacted]")
             try:
-                error_data = json.loads(exc.read()).get("error", {})
-                provider_error = error_data.get("message", "")
-                detail = error_data.get("metadata", {}).get("raw", "")
+                error_payload = json.loads(raw_error)
+                error_data = error_payload.get("error", {})
+                provider_error = error_data.get("message", "") if isinstance(error_data, dict) else str(error_data)
+                provider_error = provider_error or error_payload.get("message", "")
+                metadata = error_data.get("metadata", {}) if isinstance(error_data, dict) else {}
+                detail = metadata.get("raw", "") if isinstance(metadata, dict) else ""
                 if detail:
                     provider_error = f"{provider_error}: {detail}"
             except (ValueError, AttributeError):
                 provider_error = ""
-            self.json_response({"error": f"OpenRouter request failed ({exc.code})" + (f": {provider_error[:300]}" if provider_error else ". Check the key and account access.")}, 502)
+            if raw_error:
+                self.log_error("Cerebras returned %s: %s", exc.code, raw_error[:1000])
+            self.json_response({"error": f"Cerebras request failed ({exc.code})" + (f": {provider_error[:300]}" if provider_error else ". Check the key and account access.")}, 502)
         except Exception as exc:
             self.log_error("chat request failed: %s", exc)
-            self.json_response({"error": "Could not reach OpenRouter. Try again."}, 502)
+            self.json_response({"error": "Could not reach Cerebras. Try again."}, 502)
 
     def static(self, path):
         if path in {"/", "/analysis", "/prepare", "/prepare/", "/tournaments", "/ratings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
@@ -425,11 +431,12 @@ def serve(library, corpus, port=8765):
         raise FileNotFoundError("Build frontend first: cd frontend && npm ci && npm run build")
     Handler.library_path, Handler.corpus_path = library, corpus
     secret_file = Path(".env.local")
-    if secret_file.is_file() and not os.environ.get("OPENROUTER_API_KEY"):
+    if secret_file.is_file():
         for line in secret_file.read_text().splitlines():
-            if line.startswith("OPENROUTER_API_KEY="):
-                os.environ["OPENROUTER_API_KEY"] = line.partition("=")[2].strip().strip("\"'")
-                break
+            if "=" in line:
+                key, _, value = line.partition("=")
+                if key.strip() and not os.environ.get(key.strip()):
+                    os.environ[key.strip()] = value.strip().strip("\"'")
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"ChessScope library: http://127.0.0.1:{port}", flush=True)
     httpd.serve_forever()

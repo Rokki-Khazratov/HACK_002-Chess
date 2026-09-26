@@ -58,9 +58,16 @@ export function compactTreeLanes(tree: MoveTree, layout: TreeLayout): { lanes: R
   for (const line of lines) {
     const start = tree.nodes[line.startId];
     const parentLane = start.parentId ? lanes[start.parentId] ?? 0 : -1;
-    let lane = start.parentId ? parentLane + 1 : 0;
-    // Leave one empty column between unrelated line segments on a reused row.
-    while ((occupiedUntil[lane] ?? -2) >= start.ply - 1) lane++;
+    let lane = 0;
+    if (start.parentId) {
+      // A nested variation can use a free row above its parent as well as
+      // below it. This bounds the connector by the nearest available row.
+      for (let distance = 1; ; distance++) {
+        const candidates = [parentLane + distance, parentLane - distance];
+        const free = candidates.find((candidate) => candidate > 0 && (occupiedUntil[candidate] ?? -2) < start.ply - 1);
+        if (free !== undefined) { lane = free; break; }
+      }
+    }
 
     let id: string | undefined = start.id;
     let endPly = start.ply;

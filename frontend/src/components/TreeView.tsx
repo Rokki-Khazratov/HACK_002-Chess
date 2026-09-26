@@ -136,8 +136,8 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
     setView({ k, x: (size.w - contentW * k) / 2, y: Math.max(0, (size.h - contentH * k) / 2) });
   };
   const focus = () => {
-    const k = Math.min(1, Math.max(0.65, size.w / (10 * grid.col)));
-    setView({ k, x: size.w / 2 - (cx + 2 * grid.col) * k, y: size.h / 2 - cy * k });
+    const k = Math.min(1, Math.max(0.8, size.w / (8 * grid.col)));
+    setView({ k, x: size.w / 2 - (cx + 2 * grid.col) * k, y: size.h * 0.34 - cy * k });
   };
   const qualityMark = (id: string, x: number, y: number) => {
     const quality = qualities[id];

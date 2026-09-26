@@ -148,7 +148,7 @@ describe('PGN import', () => {
     const layout = layoutTree(result.tree);
     expect(layout.lines.length).toBe(57);
     expect(Object.keys(result.tree.nodes).length).toBe(575);
-    expect(compactTreeLanes(result.tree, layout).maxLane).toBeLessThan(20);
+    expect(compactTreeLanes(result.tree, layout).maxLane).toBeLessThanOrEqual(12);
     expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].ply).toBe(271);
     const roundtrip = importPgn(toPgn(result.tree));
     if ('error' in roundtrip) throw new Error(roundtrip.error);

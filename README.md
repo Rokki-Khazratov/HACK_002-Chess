@@ -6,6 +6,10 @@ The long-term product is a modern, ChessBase-class platform. The hackathon goal 
 
 ## Current local UI
 
+`main` integrates the board, data library, board appearance/annotation work and all five UI variants. **Workspace** is the default resizable layout; use **Layout** to choose Classic, Obsidian, Paper, Timeline or Pro. Board settings, arrow/square annotations, both tree styles and move-quality estimates work across these layouts. See the [branch integration map](docs/11-branch-integration.md) for feature provenance and validation.
+
+The local Prepare screen and a basic Cerebras chat are also included. Configure `CEREBRAS_API_KEY` in the environment or ignored `.env.local`; `CEREBRAS_MODEL` optionally selects the model. This chat receives the current position but does not yet provide evidence-backed engine/database coaching.
+
 The local app has Games, Tournaments, Rankings, and Board views. Game pages use a three-column workspace with coach chat on the left, the board in the middle, and moves on the right. The `Mock data` button loads a 136-move Carlsen–Nepomniachtchi study with 56 variations, sourced from [this Lichess study](https://lichess.org/study/RoBvWqfx/0IsLRqJa); its comments were omitted. Browser analysis uses the full NNUE Stockfish 19 build, with a target depth of 30.
 
 Rankings are an **official FIDE September 2026 monthly snapshot**, with January-to-September changes and a three-point rating trend. The main table is not live. The Rankings page embeds [2700chess's published live Top 10 banner](https://www.2700chess.com/records) and links to its full live table. Portraits are generated locally from public FIDE profile pages for the top 300. FIDE has photos for 261 of them; the other 39 show an initial avatar. These generated portraits are kept out of Git until redistribution rights are confirmed.

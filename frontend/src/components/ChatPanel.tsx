@@ -41,7 +41,7 @@ export function ChatPanel({ fen, onClose }: Props) {
     <section className="chat" aria-label="AI coach">
       <header className="chat-header">
         <span className="chat-title">Coach</span>
-        <span className="chat-badge">Qwen 3.8 27B</span>
+        <span className="chat-badge">Cerebras · GPT OSS</span>
         {onClose && <button type="button" className="chat-close" onClick={onClose} title="Close coach (C)" aria-label="Close coach">×</button>}
       </header>
       <div className="chat-body">
