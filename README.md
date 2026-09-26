@@ -30,7 +30,8 @@ The intended product journey is `landing → auth → payment → dashboard → 
 4. [Technical picture](docs/04-technical-picture.md) — components and data paths, without a full TЗ.
 5. [Data and source rights](docs/05-data-and-rights.md) — FIDE, OTB games, online games, licensing.
 6. [Decisions and handoff](docs/06-decisions-and-handoff.md) — what is fixed, what is still open.
-7. [References](docs/07-references.md) — pinned ChessScope source documents and external links.
+7. [Feature horizons](docs/07-feature-horizons.md) — demo, professional release, and later platform.
+8. [References](docs/08-references.md) — pinned ChessScope source documents and external links.
 
 The detailed product, architecture, backend, database, and phased specifications live in [ChessScope at the source revision used for this summary](https://github.com/Rokki-Khazratov/ChessScope/tree/3a990511f91aad55285270953179285a61df7b69). This repo deliberately links to that context instead of copying a large TЗ that would go stale.
 
