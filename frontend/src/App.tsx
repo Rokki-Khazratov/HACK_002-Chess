@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties, type PointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties, type PointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Arrow } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import './App.css';
 import './tree-and-tabs.css';
+import { UiSwitcher } from './ui/UiSwitcher';
+import { type Section, UI_VARIANTS, initialVariant, rememberVariant } from './ui/variants';
+import './ui/variants.css';
 import { AnalysisBoard } from './components/AnalysisBoard';
 import { ChatPanel } from './components/ChatPanel';
 import { EnginePanel } from './components/EnginePanel';
@@ -99,6 +102,9 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const [settingsOpen, setSettingsOpen] = useState(false);
   const boardSettings = useBoardSettings();
   const [mockLoaded, setMockLoaded] = useState(false);
+  const [variantId, setVariantId] = useState(initialVariant);
+  const variant = UI_VARIANTS.find((item) => item.id === variantId) ?? UI_VARIANTS[0];
+  const changeVariant = (id: string) => { setVariantId(id); rememberVariant(id); };
   const [workspace, setWorkspace] = useState(storedWorkspace);
   const [moveIcons, setMoveIcons] = useState(storedMoveIcons);
   const [reviews, setReviews] = useState<Record<string, PositionReview>>({});
@@ -251,7 +257,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('input, textarea') || pgnOpen || renaming || settingsOpen) return;
+      if (target?.closest('input, textarea, select, [contenteditable], [role="separator"]') || pgnOpen || renaming || settingsOpen) return;
       // Changing the position mid-drag would pull the square out from under the piece.
       if (document.querySelector('#analysis-board-board [aria-pressed="true"]')) return;
       // The promotion picker owns the keyboard until a piece is chosen or it is closed.
@@ -297,7 +303,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           ']': () => select(nextFork(tree, currentId) ?? lineEnd(tree, currentId)),
           '?': () => setHelpOpen(true),
         };
-        if (tab === 'tree' && !chooser) {
+        if ((tab === 'tree' || variant.splitTree) && !chooser) {
           actions.ArrowUp = () => select(switchLine(tree, currentId, -1));
           actions.ArrowDown = () => select(switchLine(tree, currentId, 1));
         }
@@ -398,21 +404,9 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       : `minmax(0, 1fr) 6px ${workspace.moves}%`,
   } satisfies CSSProperties;
 
-  return (
-    <div
-      className="app"
-      ref={appRef}
-      style={workspaceStyle}
-      onClick={() => {
-        setMenu(null);
-        setChooser(null);
-      }}
-    >
-      {workspace.chatOpen && <>
-        <ChatPanel fen={current.fen} onClose={() => setWorkspace((previous) => ({ ...previous, chatOpen: false }))} />
-        <div className="workspace-resizer" role="separator" aria-label="Resize coach and board" aria-orientation="vertical" aria-valuenow={Math.round(workspace.chat)} tabIndex={0} onPointerDown={(event) => beginResize('chat', event)} onKeyDown={(event) => resizeWithKeyboard('chat', event)} />
-      </>}
-      <main className="board-column">
+  const moveView = variant.splitTree ? 'moves' : tab;
+  const sections: Record<Section, ReactNode> = {
+    board: (<main className="board-column">
         {!workspace.chatOpen && <button type="button" className="show-chat" onClick={() => setWorkspace((previous) => ({ ...previous, chatOpen: true }))}>Open coach</button>}
         <div className={`board-frame${boardSettings.showEvalBar ? '' : ' board-frame-no-eval'}`}>
           <PlayerStrip game={activeGame} color={topColor} />
@@ -444,19 +438,16 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
               </button>
           </PlayerStrip>
         </div>
-      </main>
-
-      <div className="workspace-resizer" role="separator" aria-label="Resize board and moves" aria-orientation="vertical" aria-valuenow={Math.round(workspace.moves)} tabIndex={0} onPointerDown={(event) => beginResize('moves', event)} onKeyDown={(event) => resizeWithKeyboard('moves', event)} />
-
-      <aside className="panel">
-        <EnginePanel
+      </main>),
+    title: <h1 className="panel-title">Analysis</h1>,
+    engine: (<EnginePanel
           engine={engineCurrent || !engineEnabled ? engine : { ...engine, lines: [], depth: 0 }}
           enabled={engineEnabled}
           maxDepth={ENGINE_OPTIONS.maxDepth}
           onToggle={() => setEngineEnabled((on) => !on)}
           onPlayLine={playLine}
-        />
-        <div className="opening" aria-live="polite">
+        />),
+    opening: (<div className="opening" aria-live="polite">
           {status ? (
             <strong>{status}</strong>
           ) : opening ? (
@@ -467,10 +458,9 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           ) : (
             <span>{tree.nodes[tree.rootId].fen !== START_FEN ? 'Custom position' : current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
           )}
-        </div>
-
-        <div className="tabs" role="tablist" aria-label="Move view">
-          {(['moves', 'tree'] as const).map((value) => (
+        </div>),
+    moves: (<div className="moves-section"><div className="tabs" role="tablist" aria-label="Move view">
+          {(variant.splitTree ? (['moves'] as const) : (['moves', 'tree'] as const)).map((value) => (
             <button
               key={value}
               type="button"
@@ -489,15 +479,14 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
             ?
           </button>
         </div>
-        <div className={`moves-scroll${tab === 'tree' ? ' moves-scroll-tree' : ''}`}>
-          {tab === 'moves' ? (
+        <div className={`moves-scroll${moveView === 'tree' ? ' moves-scroll-tree' : ''}`}>
+          {moveView === 'moves' ? (
             <MoveList tree={tree} layout={layout} currentId={currentId} qualities={qualities} onSelect={select} onContextMenu={openMenu} />
           ) : (
             <TreeView key={mockLoaded ? 'mock' : 'game'} tree={tree} layout={layout} currentId={currentId} qualities={qualities} onSelect={select} onContextMenu={openMenu} />
           )}
-        </div>
-
-        <nav className="nav" aria-label="Move navigation">
+        </div></div>),
+    nav: (<div className="nav-section"><nav className="nav" aria-label="Move navigation">
           <button type="button" className="nav-button" onClick={goStart} disabled={!current.parentId} title="First move (Home)">
             ⏮
           </button>
@@ -521,13 +510,44 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           </button>
         </nav>
         <div className="toolbar">
+          <label className="layout-picker">Layout <select aria-label="Workspace layout" value={variant.id} onChange={(event) => changeVariant(event.target.value)}>{UI_VARIANTS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <button type="button" className="btn" onClick={reset}>New</button>
           <button type="button" className="btn" onClick={flip} title="Flip board (F)">Flip</button>
           <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
           <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
+        </div></div>),
+    chat: workspace.chatOpen ? <ChatPanel fen={current.fen} onClose={() => setWorkspace((previous) => ({ ...previous, chatOpen: false }))} /> : null,
+    treeDock: <section className="tree-dock" aria-label="Tree of lines">
+      <header className="tree-dock-header"><span>Lines</span><span className="tabs-meta">{positionCount} nodes · {sideLines} lines</span></header>
+      <TreeView key={mockLoaded ? 'mock' : 'game'} tree={tree} layout={layout} currentId={currentId} qualities={qualities} onSelect={select} onContextMenu={openMenu} />
+    </section>,
+  };
+
+  return (
+    <div
+      className={`app${import.meta.env.DEV ? ' app-with-switcher' : ''}`}
+      data-ui={variant.id}
+      ref={appRef}
+      style={variant.id === 'workspace' ? workspaceStyle : undefined}
+      onClick={() => {
+        setMenu(null);
+        setChooser(null);
+      }}
+    >
+      {variant.id === 'workspace' ? <>
+        {workspace.chatOpen && <>
+          {sections.chat}
+          <div className="workspace-resizer" role="separator" aria-label="Resize coach and board" aria-orientation="vertical" aria-valuenow={Math.round(workspace.chat)} tabIndex={0} onPointerDown={(event) => beginResize('chat', event)} onKeyDown={(event) => resizeWithKeyboard('chat', event)} />
+        </>}
+        {sections.board}
+        <div className="workspace-resizer" role="separator" aria-label="Resize board and moves" aria-orientation="vertical" aria-valuenow={Math.round(workspace.moves)} tabIndex={0} onPointerDown={(event) => beginResize('moves', event)} onKeyDown={(event) => resizeWithKeyboard('moves', event)} />
+        <aside className="panel">{sections.engine}{sections.opening}{sections.moves}{sections.nav}</aside>
+      </> : variant.columns.map((column, index) => (
+        <div key={`${variant.id}-${index}`} className={`ui-column ui-column-${index}${column.includes('board') ? ' ui-column-board' : ' panel'}`}>
+          {column.map((section) => <Fragment key={section}>{sections[section]}</Fragment>)}
         </div>
-      </aside>
+      ))}
 
       {menu && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
@@ -603,6 +623,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
 
       {settingsOpen && <BoardSettingsDialog onClose={() => setSettingsOpen(false)} />}
+
+      {import.meta.env.DEV && <UiSwitcher current={variant.id} onChange={changeVariant} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

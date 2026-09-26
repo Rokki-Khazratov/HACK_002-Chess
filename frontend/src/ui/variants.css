@@ -1,0 +1,400 @@
+/* Five UI variants. Layout = which sections sit in which column (variants.ts);
+   this file sets column widths, the palette and a few per-variant touches. */
+
+/* ---------- Shared section behaviour ---------- */
+.moves-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 140px;
+}
+
+.moves-section .moves-scroll {
+  flex: 1 1 auto;
+}
+
+.nav-section {
+  flex: none;
+}
+
+.chat {
+  flex: none;
+}
+
+.tree-dock {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 200px;
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.panel .tree-dock {
+  border-radius: 0;
+}
+
+.tree-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-weight: 600;
+}
+
+.tree-dock .tree-view {
+  flex: 1 1 auto;
+}
+
+/* ---------- Switcher ---------- */
+.app-with-switcher {
+  height: calc(100vh - 46px);
+}
+
+.ui-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100vw - 24px);
+  padding: 5px 6px 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(18, 18, 20, 0.92);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  color: #ecebe8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+}
+
+.ui-switcher-label {
+  margin-right: 4px;
+  color: #8c8a86;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.ui-switcher-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #c9c7c2;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ui-switcher-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ui-switcher-item-active {
+  background: #ecebe8;
+  color: #151417;
+}
+
+.ui-switcher-index {
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-switcher-pitch {
+  max-width: 360px;
+  margin: 0 8px;
+  overflow: hidden;
+  color: #8c8a86;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 1. Classic ---------- */
+.app[data-ui='classic'] {
+  grid-template-columns: minmax(0, 1fr) 440px;
+}
+
+/* ---------- 2. Obsidian: three panes, permanent graph ---------- */
+.app[data-ui='obsidian'] {
+  --color-bg-primary: #16151b;
+  --color-bg-secondary: #1e1d25;
+  --color-bg-elevated: #282632;
+  --color-surface-hover: #2f2d3a;
+  --color-surface-selected: #3b3750;
+  --color-text-primary: #e8e6f0;
+  --color-text-secondary: #aba7bd;
+  --color-text-tertiary: #7b7790;
+  --color-border-subtle: #2a2833;
+  --color-border-default: #3a3746;
+  --color-accent-primary: #a78bfa;
+  --color-accent-muted: #342b4d;
+  --board-light: #dee3e6;
+  --board-dark: #8ca2ad;
+  --board-lastMove: rgba(167, 139, 250, 0.45);
+  --board-lastMove-from: rgba(167, 139, 250, 0.25);
+  --board-selected: rgba(167, 139, 250, 0.5);
+  --board-selected-ring: rgba(167, 139, 250, 0.95);
+  --engine-blackAdvantage: #2e2c38;
+  grid-template-columns: minmax(0, 1fr) 340px 400px;
+  max-width: 1760px;
+  background: radial-gradient(ellipse at 15% 0%, #221f2e 0%, #16151b 55%);
+}
+
+.app[data-ui='obsidian'] .ui-column-2 {
+  background: none;
+  gap: var(--space-3);
+  overflow: visible;
+}
+
+.app[data-ui='obsidian'] .ui-column-2 .chat {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-secondary);
+}
+
+.app[data-ui='obsidian'] .tree-dock {
+  flex: 1.4 1 auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* ---------- 3. Paper: light, coach under the board ---------- */
+.app[data-ui='paper'] {
+  --color-bg-primary: #f4f1ea;
+  --color-bg-secondary: #fbfaf6;
+  --color-bg-elevated: #ffffff;
+  --color-surface-hover: #ece7dc;
+  --color-surface-selected: #dfe8d2;
+  --color-text-primary: #26241f;
+  --color-text-secondary: #57534a;
+  --color-text-tertiary: #8b867b;
+  --color-border-subtle: #e5e0d4;
+  --color-border-default: #d3ccbc;
+  --color-accent-primary: #4f7a28;
+  --color-accent-muted: #e2ecd5;
+  --board-light: #eeeed2;
+  --board-dark: #769656;
+  --board-lastMove: rgba(246, 246, 105, 0.7);
+  --board-lastMove-from: rgba(246, 246, 105, 0.45);
+  --engine-whiteAdvantage: #ffffff;
+  --engine-blackAdvantage: #3d3a34;
+  color-scheme: light;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  grid-template-columns: minmax(0, 1fr) 420px;
+  max-width: none;
+}
+
+body:has(.app[data-ui='paper']) {
+  background: #f4f1ea;
+}
+
+.app[data-ui='paper'] .panel {
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: 0 1px 2px rgba(60, 50, 30, 0.06);
+}
+
+.app[data-ui='paper'] .panel-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.app[data-ui='paper'] .ui-column-board .chat {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.app[data-ui='paper'] .ui-column-board .chat-body { max-height: 180px; overflow: auto; }
+
+.app[data-ui='paper'] .eval-white {
+  border: 1px solid var(--color-border-default);
+}
+
+.app[data-ui='paper'] .tree-view {
+  background: radial-gradient(ellipse at 30% 20%, #fffdf7 0%, #f1ede3 70%);
+}
+
+.app[data-ui='paper'] .tree-node rect {
+  fill: #ffffff;
+}
+
+.app[data-ui='paper'] .tree-dot {
+  fill: rgba(0, 0, 0, 0.08);
+}
+
+.app[data-ui='paper'] .tree-node-current rect {
+  fill: var(--line-color);
+  stroke: #26241f;
+}
+
+.app[data-ui='paper'] .tree-node-current text {
+  fill: #ffffff;
+}
+
+.app[data-ui='paper'] .tree-controls button {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* ---------- 4. Timeline: horizontal graph under the board ---------- */
+.app[data-ui='timeline'] {
+  --color-bg-primary: #111416;
+  --color-bg-secondary: #181c1f;
+  --color-bg-elevated: #20262a;
+  --color-surface-hover: #242b30;
+  --color-surface-selected: #1f3a3a;
+  --color-text-primary: #e4ebea;
+  --color-text-secondary: #a3b0ae;
+  --color-text-tertiary: #6f7d7b;
+  --color-border-subtle: #232a2e;
+  --color-border-default: #2f383d;
+  --color-accent-primary: #2dd4bf;
+  --color-accent-muted: #15393a;
+  --board-light: #e8dcc8;
+  --board-dark: #a88a6c;
+  --board-lastMove: rgba(45, 212, 191, 0.4);
+  --board-lastMove-from: rgba(45, 212, 191, 0.22);
+  --board-selected: rgba(45, 212, 191, 0.45);
+  --board-selected-ring: rgba(45, 212, 191, 0.95);
+  grid-template-columns: minmax(0, 1fr) 380px;
+  max-width: none;
+}
+
+.app[data-ui='timeline'] .ui-column-board .board-column {
+  flex: 1 1 60%;
+}
+
+.app[data-ui='timeline'] .ui-column-board .tree-dock {
+  flex: 0 0 250px;
+  min-height: 170px;
+}
+
+.app[data-ui='timeline'] .tree-view {
+  background: linear-gradient(180deg, #151a1d 0%, #111416 100%);
+}
+
+/* ---------- 5. Pro: dense desk, full-height coach ---------- */
+.app[data-ui='terminal'] {
+  --color-bg-primary: #0b0b0c;
+  --color-bg-secondary: #121214;
+  --color-bg-elevated: #1a1a1d;
+  --color-surface-hover: #1f1f23;
+  --color-surface-selected: #2a2412;
+  --color-text-primary: #ededed;
+  --color-text-secondary: #a8a8a8;
+  --color-text-tertiary: #6d6d6d;
+  --color-border-subtle: #1f1f22;
+  --color-border-default: #2c2c30;
+  --color-accent-primary: #f5b83d;
+  --color-accent-muted: #3a2d10;
+  --board-light: #d9d9d9;
+  --board-dark: #8f8f8f;
+  --board-lastMove: rgba(245, 184, 61, 0.5);
+  --board-lastMove-from: rgba(245, 184, 61, 0.28);
+  --board-selected: rgba(245, 184, 61, 0.45);
+  --board-selected-ring: rgba(245, 184, 61, 1);
+  --radius-md: 3px;
+  --radius-sm: 3px;
+  grid-template-columns: minmax(0, 1fr) 360px 360px;
+  gap: 1px;
+  padding: 0;
+  max-width: none;
+  font-size: 13px;
+  background: #1f1f22;
+}
+
+.app[data-ui='terminal'] .ui-column {
+  background: var(--color-bg-primary);
+}
+
+.app[data-ui='terminal'] .ui-column.panel {
+  border-radius: 0;
+  background: var(--color-bg-secondary);
+}
+
+.app[data-ui='terminal'] .engine-pv,
+.app[data-ui='terminal'] .moves,
+.app[data-ui='terminal'] .eval-badge,
+.app[data-ui='terminal'] .opening,
+.app[data-ui='terminal'] .engine-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.app[data-ui='terminal'] .eval-white {
+  background: var(--color-accent-primary);
+}
+
+.app[data-ui='terminal'] .ui-column-2 .chat {
+  flex: 1 1 auto;
+  border-top: 0;
+  background: var(--color-bg-secondary);
+}
+
+.app[data-ui='terminal'] .ui-column-2 .chat-body {
+  flex: 1 1 auto;
+  padding-top: var(--space-2);
+}
+
+.app[data-ui='terminal'] .chat-header {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ---------- Narrow screens: every variant stacks ---------- */
+@media (max-width: 1100px) {
+  .app[data-ui='obsidian'],
+  .app[data-ui='terminal'] {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+
+  .app[data-ui='obsidian'] .ui-column-2,
+  .app[data-ui='terminal'] .ui-column-2 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .app[data-ui] {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding-bottom: 64px;
+  }
+
+  .app[data-ui] .ui-column-2 {
+    grid-column: auto;
+  }
+
+  .ui-switcher-pitch {
+    display: none;
+  }
+}
+
+/* Keep the established workspace as the default; alternatives reuse its features. */
+.app.app-with-switcher { height: calc(100dvh - 98px); }
+.app:not([data-ui='workspace']) { gap: 12px; }
+.app:not([data-ui='workspace']) .board-column { container-type: size; }
+.app:not([data-ui='workspace']) .board-frame { --board-size: min(calc(100cqw - 48px), calc(100cqh - 126px)); }
+.ui-column .chat { min-height: 180px; max-height: 40vh; overflow: hidden; }
+.ui-column .chat .chat-body { overflow: auto; }
+.app[data-ui='terminal'] .ui-column-2 .chat { max-height: none; height: 100%; }
+.layout-picker { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-secondary); }
+.layout-picker select { min-width: 0; max-width: 115px; padding: 4px; border: 1px solid var(--color-border-default); border-radius: 4px; color: var(--color-text-primary); background: var(--color-bg-secondary); }
+.ui-switcher { overflow-x: auto; }
+@media (max-width: 1100px) {
+  .app.app-with-switcher { height: auto; padding-bottom: 64px; }
+  .app[data-ui] .ui-column-2 { grid-column: auto; }
+  .app:not([data-ui='workspace']) .board-column { height: min(90vw, 700px); flex: none; }
+  .app[data-ui] .ui-column { min-height: 0; }
+  .app[data-ui] .ui-column.panel { min-height: 520px; }
+}
