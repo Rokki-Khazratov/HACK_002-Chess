@@ -21,9 +21,23 @@ npm run build
 | Openings | `src/chess/openings.ts`, `src/data/openings.json` | 3,815 named positions from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) (CC0), matched by EPD so transpositions resolve. Rebuild with `npm run openings` |
 | Engine | `src/engine/stockfish.ts` | Stockfish 19 lite single-thread WASM in a Web Worker (no COOP/COEP headers needed), MultiPV 3, depth 22. Scores converted to White's point of view |
 | Board | `src/components/AnalysisBoard.tsx` | [react-chessboard](https://github.com/Clariity/react-chessboard) v5: drag or click-click, legal-move dots, last move, check, best-move arrow, promotion picker |
+| Tree graph | `src/components/TreeView.tsx`, `src/chess/layout.ts` | Pan (drag), zoom (wheel, +/−, Fit), click a node to jump; lines get lanes, letters and colours shared with the move list |
+| Move list | `src/components/MoveList.tsx` | Figurine notation, collapsible coloured side lines, nested forks in place |
 | Coach slot | `src/components/ChatPanel.tsx` | Placeholder; receives the current FEN |
 
-Keyboard: ← / → step, ↑ / Home start, ↓ / End end of line, F flip. Right-click a move to promote or delete a variation. Clicking an engine line plays it into the tree.
+### Keyboard
+
+| Keys | Action |
+|---|---|
+| ← / → | Previous / next move; → at a fork opens the line chooser (↑/↓ pick, → or Enter follow, Esc close) |
+| Ctrl + ↑ / ↓ | Neighbouring line at the closest fork, same depth |
+| Ctrl + ← / → | Back to the fork this line came from / forward to the next fork |
+| Home / End | Start / end of current line |
+| T | Moves ↔ Tree |
+| F | Flip board |
+| ? | Shortcut help |
+
+Right-click a move (list or graph) to name the line, make it the main continuation, or delete it. Clicking an engine line plays it into the tree.
 
 ## Licences
 

@@ -15,6 +15,8 @@ export interface MoveNode {
   uci: string | null;
   from: string | null;
   to: string | null;
+  /** Optional user label for the line that starts at this node ("Qc3 sac"). */
+  name?: string;
 }
 
 export interface MoveTree {
@@ -183,4 +185,52 @@ export function toPgn(tree: MoveTree): string {
 
   const first = root.children[0];
   return headers + (first ? `${line(first, true)} *` : '*');
+}
+
+/** Sets or clears the user label of the line starting at `nodeId`. */
+export function renameNode(tree: MoveTree, nodeId: string, name: string): MoveTree {
+  const node = tree.nodes[nodeId];
+  const trimmed = name.trim();
+  return { ...tree, nodes: { ...tree.nodes, [nodeId]: { ...node, name: trimmed || undefined } } };
+}
+
+/**
+ * The closest fork at or above `nodeId`: the ancestor that has several children,
+ * plus the child on the path to `nodeId`. Null when the path has no branching.
+ */
+export function forkAbove(tree: MoveTree, nodeId: string): { forkId: string; childId: string } | null {
+  let childId = nodeId;
+  let parentId = tree.nodes[nodeId].parentId;
+  while (parentId) {
+    if (tree.nodes[parentId].children.length > 1) return { forkId: parentId, childId };
+    childId = parentId;
+    parentId = tree.nodes[parentId].parentId;
+  }
+  return null;
+}
+
+/** The first node strictly below `nodeId` (following main continuations) with several children. */
+export function nextFork(tree: MoveTree, nodeId: string): string | null {
+  let id = tree.nodes[nodeId].children[0];
+  while (id) {
+    if (tree.nodes[id].children.length > 1) return id;
+    id = tree.nodes[id].children[0];
+  }
+  return null;
+}
+
+/**
+ * Moves to the neighbouring line at the closest fork above the current node,
+ * keeping the same depth below the fork when that line is long enough.
+ */
+export function switchLine(tree: MoveTree, nodeId: string, direction: 1 | -1): string {
+  const fork = forkAbove(tree, nodeId);
+  if (!fork) return nodeId;
+  const siblings = tree.nodes[fork.forkId].children;
+  const index = siblings.indexOf(fork.childId);
+  const target = siblings[(index + direction + siblings.length) % siblings.length];
+  const depth = tree.nodes[nodeId].ply - tree.nodes[target].ply;
+  let id = target;
+  for (let i = 0; i < depth && tree.nodes[id].children.length; i++) id = tree.nodes[id].children[0];
+  return id;
 }

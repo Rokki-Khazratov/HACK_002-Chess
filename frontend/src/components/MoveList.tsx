@@ -1,22 +1,27 @@
-import { Fragment, type ReactNode, useEffect, useRef } from 'react';
-import type { MoveNode } from '../chess/tree';
-import { type MoveTree, isWhiteMove, moveNumberLabel } from '../chess/tree';
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
+import type { TreeLayout } from '../chess/layout';
+import { lineColor } from '../chess/layout';
+import { type MoveNode, type MoveTree, isWhiteMove, moveNumberLabel } from '../chess/tree';
+import { San } from './San';
 
 interface Props {
   tree: MoveTree;
+  layout: TreeLayout;
   currentId: string;
   onSelect: (nodeId: string) => void;
   onContextMenu: (nodeId: string, x: number, y: number) => void;
 }
 
 /**
- * Renders the main line as numbered rows and every side line as an indented
- * block under the move it replaces, recursively (chess.com / ChessBase style).
+ * Main line as numbered rows; every side line as a collapsible block under the
+ * move it replaces, with a coloured rail and label matching the tree graph.
  */
-export function MoveList({ tree, currentId, onSelect, onContextMenu }: Props) {
+export function MoveList({ tree, layout, currentId, onSelect, onContextMenu }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+
   useEffect(() => {
-    container.current?.querySelector('.move-current')?.scrollIntoView({ block: 'nearest' });
+    container.current?.querySelector('.move-current')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [currentId, tree]);
 
   const root = tree.nodes[tree.rootId];
@@ -24,10 +29,19 @@ export function MoveList({ tree, currentId, onSelect, onContextMenu }: Props) {
     return <p className="moves-empty">Make a move on the board or paste a PGN.</p>;
   }
 
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const moveButton = (id: string, label: ReactNode) => (
     <button
       key={id}
       type="button"
+      data-node={id}
       className={`move${id === currentId ? ' move-current' : ''}`}
       aria-current={id === currentId ? 'step' : undefined}
       onClick={() => onSelect(id)}
@@ -40,43 +54,70 @@ export function MoveList({ tree, currentId, onSelect, onContextMenu }: Props) {
     </button>
   );
 
-  /** A side line rendered inline: "5... Nc6 6. Bb5 a6". Nested lines go in parentheses. */
-  const inlineLine = (startId: string): ReactNode[] => {
-    const out: ReactNode[] = [];
+  const lineOf = (id: string) => layout.lines.find((line) => line.startId === id);
+
+  /** A side line rendered inline: "5... Nc6 6. Bb5 a6", nested side lines as sub-blocks. */
+  const sideLine = (startId: string): ReactNode => {
+    const line = lineOf(startId);
+    const isCollapsed = collapsed.has(startId);
+    // Segments of inline moves, interrupted by nested side-line blocks at forks.
+    const content: ReactNode[] = [];
+    let items: ReactNode[] = [];
+    let moveCount = 0;
+    const flushItems = () => {
+      if (items.length) content.push(<div key={`m-${content.length}`} className="variation-moves">{items}</div>);
+      items = [];
+    };
     let id: string | undefined = startId;
     let needNumber = true;
     while (id) {
       const node: MoveNode = tree.nodes[id];
-      const label =
-        isWhiteMove(tree, node) || needNumber ? `${moveNumberLabel(tree, node)} ${node.san}` : node.san;
-      out.push(moveButton(id, label));
+      const number = isWhiteMove(tree, node) || needNumber ? `${moveNumberLabel(tree, node)} ` : '';
+      items.push(
+        moveButton(
+          id,
+          <>
+            {number && <span className="move-inline-number">{number}</span>}
+            <San san={node.san!} />
+          </>,
+        ),
+      );
+      moveCount++;
       needNumber = false;
       const parent = tree.nodes[node.parentId!];
-      if (parent.children[0] === id) {
-        for (const alt of parent.children.slice(1)) {
-          out.push(
-            <span key={`p-${alt}`} className="variation-nested">
-              ({inlineLine(alt)})
-            </span>,
-          );
-          needNumber = true;
-        }
+      if (parent.children[0] === id && parent.children.length > 1 && id !== startId) {
+        flushItems();
+        content.push(
+          <div key={`n-${id}`} className="variation-children">
+            {parent.children.slice(1).map((alt) => sideLine(alt))}
+          </div>,
+        );
+        needNumber = true;
       }
       id = node.children[0];
     }
-    return out;
-  };
+    flushItems();
 
-  const variationBlock = (parentId: string, mainChildId: string) => {
-    const alts = tree.nodes[parentId].children.filter((id) => id !== mainChildId);
-    if (!alts.length) return null;
     return (
-      <div key={`v-${parentId}`} className="variations">
-        {alts.map((alt) => (
-          <div key={alt} className="variation">
-            {inlineLine(alt)}
-          </div>
-        ))}
+      <div
+        key={startId}
+        className={`variation${isCollapsed ? ' variation-collapsed' : ''}`}
+        style={{ ['--line-color' as string]: lineColor(layout, startId) }}
+      >
+        <div className="variation-head">
+          <button
+            type="button"
+            className="variation-toggle"
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand line' : 'Collapse line'}
+            onClick={() => toggle(startId)}
+          >
+            {isCollapsed ? '▸' : '▾'}
+          </button>
+          <span className="variation-label">{line?.label}</span>
+          {isCollapsed && <span className="variation-count">{moveCount} moves</span>}
+        </div>
+        {!isCollapsed && content}
       </div>
     );
   };
@@ -99,21 +140,23 @@ export function MoveList({ tree, currentId, onSelect, onContextMenu }: Props) {
 
   while (id) {
     const node: MoveNode = tree.nodes[id];
-    const parentId = node.parentId!;
-    const white = isWhiteMove(tree, node);
+    const parent = tree.nodes[node.parentId!];
     const number = moveNumberLabel(tree, node).replace(/\.+$/, '.');
-    if (white) {
+    if (isWhiteMove(tree, node)) {
       flush();
-      row = { number, white: moveButton(id, node.san) };
+      row = { number, white: moveButton(id, <San san={node.san!} />) };
     } else {
       if (!row) row = { number };
-      row.black = moveButton(id, node.san);
+      row.black = moveButton(id, <San san={node.san!} />);
       flush();
     }
-    const block = variationBlock(parentId, id);
-    if (block) {
+    if (parent.children.length > 1) {
       flush();
-      rows.push(<Fragment key={`b-${id}`}>{block}</Fragment>);
+      rows.push(
+        <Fragment key={`b-${id}`}>
+          <div className="variations">{parent.children.slice(1).map((alt) => sideLine(alt))}</div>
+        </Fragment>,
+      );
     }
     id = node.children[0];
   }

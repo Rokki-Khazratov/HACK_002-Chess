@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { addMove, createTree, deleteNode, lineEnd, pathTo, promoteNode, toPgn } from './tree';
+import {
+  addMove,
+  createTree,
+  deleteNode,
+  forkAbove,
+  lineEnd,
+  nextFork,
+  pathTo,
+  promoteNode,
+  renameNode,
+  switchLine,
+  toPgn,
+} from './tree';
+import { layoutTree } from './layout';
 import { importPgn } from './pgn';
 import { openingAt } from './openings';
 import { formatScore, parseInfo, uciToSan } from '../engine/stockfish';
@@ -56,6 +69,52 @@ describe('move tree', () => {
     const result = addMove(tree, tree.rootId, { from: 'a7', to: 'a8', promotion: 'n' })!;
     expect(result.tree.nodes[result.nodeId].san).toBe('a8=N');
     expect(addMove(tree, tree.rootId, { from: 'a7', to: 'a8' })).toBeNull();
+  });
+});
+
+describe('branch navigation and layout', () => {
+  // 1. e4 e5 (1... c5 2. Nf3 (2. c3) d6) (1... e6 2. d4) 2. Nf3 Nc6
+  const build = () => {
+    const result = importPgn('1. e4 e5 (1... c5 2. Nf3 (2. c3) 2... d6) (1... e6 2. d4) 2. Nf3 Nc6 *');
+    if ('error' in result) throw new Error(result.error);
+    return result.tree;
+  };
+  const find = (tree: ReturnType<typeof build>, sanPath: string[]) => {
+    let id = tree.rootId;
+    for (const san of sanPath) id = tree.nodes[id].children.find((c) => tree.nodes[c].san === san)!;
+    return id;
+  };
+
+  it('finds forks above and below', () => {
+    const tree = build();
+    const nf3 = find(tree, ['e4', 'e5', 'Nf3']);
+    const e4 = find(tree, ['e4']);
+    expect(forkAbove(tree, nf3)).toEqual({ forkId: e4, childId: find(tree, ['e4', 'e5']) });
+    expect(nextFork(tree, tree.rootId)).toBe(e4);
+    expect(nextFork(tree, nf3)).toBeNull();
+    expect(forkAbove(tree, e4)).toBeNull();
+  });
+
+  it('switches to the neighbouring line keeping depth below the fork', () => {
+    const tree = build();
+    const nf3 = find(tree, ['e4', 'e5', 'Nf3']);
+    expect(switchLine(tree, nf3, 1)).toBe(find(tree, ['e4', 'c5', 'Nf3']));
+    expect(switchLine(tree, nf3, -1)).toBe(find(tree, ['e4', 'e6', 'd4']));
+    const c3 = find(tree, ['e4', 'c5', 'c3']);
+    expect(switchLine(tree, c3, 1)).toBe(find(tree, ['e4', 'c5', 'Nf3']));
+  });
+
+  it('lays out lines depth-first with the main line on lane 0', () => {
+    const tree = build();
+    const layout = layoutTree(tree);
+    expect(layout.lanes[find(tree, ['e4', 'e5', 'Nf3', 'Nc6'])]).toBe(0);
+    expect(layout.lanes[find(tree, ['e4', 'c5', 'Nf3', 'd6'])]).toBe(1);
+    expect(layout.lanes[find(tree, ['e4', 'c5', 'c3'])]).toBe(2);
+    expect(layout.lanes[find(tree, ['e4', 'e6', 'd4'])]).toBe(3);
+    expect(layout.lines.map((l) => l.label)).toEqual(['Main line', 'Line A', 'Line C', 'Line B']);
+    expect(layout.maxPly).toBe(4);
+    const named = layoutTree(renameNode(tree, find(tree, ['e4', 'e6']), 'French try'));
+    expect(named.lines[3].label).toBe('French try');
   });
 });
 

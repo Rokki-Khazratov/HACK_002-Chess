@@ -2,11 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Arrow } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import './App.css';
+import './tree-and-tabs.css';
 import { AnalysisBoard } from './components/AnalysisBoard';
 import { ChatPanel } from './components/ChatPanel';
 import { EnginePanel } from './components/EnginePanel';
 import { EvalBar } from './components/EvalBar';
+import { LineChooser } from './components/LineChooser';
 import { MoveList } from './components/MoveList';
+import { ShortcutHelp } from './components/ShortcutHelp';
+import { TreeView } from './components/TreeView';
+import { layoutTree } from './chess/layout';
 import { openingAt } from './chess/openings';
 import { importPgn } from './chess/pgn';
 import {
@@ -15,13 +20,26 @@ import {
   addMove,
   createTree,
   deleteNode,
+  forkAbove,
   lineEnd,
+  nextFork,
   promoteNode,
+  renameNode,
+  switchLine,
   toPgn,
 } from './chess/tree';
 import { type EngineState, StockfishEngine } from './engine/stockfish';
 
 const ENGINE_OPTIONS = { multiPv: 3, maxDepth: 22 };
+type PanelTab = 'moves' | 'tree';
+
+function storedTab(): PanelTab {
+  try {
+    return localStorage.getItem('chessscope.panelTab') === 'tree' ? 'tree' : 'moves';
+  } catch {
+    return 'moves';
+  }
+}
 
 export default function App() {
   const [tree, setTree] = useState<MoveTree>(() => createTree());
@@ -32,8 +50,13 @@ export default function App() {
   const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const [pgnOpen, setPgnOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [tab, setTab] = useState<PanelTab>(storedTab);
+  const [chooser, setChooser] = useState<{ forkId: string; index: number; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const current = tree.nodes[currentId];
+  const layout = useMemo(() => layoutTree(tree), [tree]);
   const engineRef = useRef<StockfishEngine | null>(null);
 
   useEffect(() => {
@@ -48,16 +71,30 @@ export default function App() {
   }, [current.fen, engineEnabled]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('chessscope.panelTab', tab);
+    } catch {
+      // Storage may be unavailable (private mode); the tab just isn't remembered.
+    }
+  }, [tab]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 1800);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  const select = (nodeId: string) => {
+    setChooser(null);
+    setCurrentId(nodeId);
+  };
 
   const play = useCallback(
     (move: MoveInput): boolean => {
       const result = addMove(tree, currentId, move);
       if (!result) return false;
       setTree(result.tree);
+      setChooser(null);
       setCurrentId(result.nodeId);
       return true;
     },
@@ -75,31 +112,80 @@ export default function App() {
     }
     setTree(nextTree);
     // Stay on the first move of the line so the user can step through it.
-    const first = nextTree.nodes[currentId].children.find(
-      (id) => nextTree.nodes[id].uci === uciMoves[0],
-    );
-    if (first) setCurrentId(first);
+    const first = nextTree.nodes[currentId].children.find((id) => nextTree.nodes[id].uci === uciMoves[0]);
+    if (first) select(first);
   };
 
-  const goBack = () => current.parentId && setCurrentId(current.parentId);
-  const goForward = () => current.children[0] && setCurrentId(current.children[0]);
-  const goStart = () => setCurrentId(tree.rootId);
-  const goEnd = () => setCurrentId(lineEnd(tree, currentId));
+  const goBack = () => current.parentId && select(current.parentId);
+  const goStart = () => select(tree.rootId);
+  const goEnd = () => select(lineEnd(tree, currentId));
+  const flip = () => setOrientation((o) => (o === 'white' ? 'black' : 'white'));
+  const toggleTab = () => setTab((t) => (t === 'moves' ? 'tree' : 'moves'));
+
+  /** Opens the line chooser under the current move (list or graph). */
+  const openChooser = () => {
+    const anchorEl =
+      document.querySelector('.move-current') ??
+      document.querySelector('.tree-node-current') ??
+      document.querySelector('.moves-scroll');
+    const rect = anchorEl?.getBoundingClientRect();
+    setChooser({
+      forkId: currentId,
+      index: 0,
+      x: rect ? Math.min(rect.left, window.innerWidth - 280) : window.innerWidth / 2,
+      y: rect ? Math.min(rect.bottom + 6, window.innerHeight - 200) : window.innerHeight / 2,
+    });
+  };
+
+  const goForward = () => {
+    if (chooser) select(tree.nodes[chooser.forkId].children[chooser.index]);
+    else if (current.children.length > 1) openChooser();
+    else if (current.children[0]) select(current.children[0]);
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (target.closest('input, textarea') || pgnOpen) return;
-      const actions: Record<string, () => void> = {
-        ArrowLeft: goBack,
-        ArrowRight: goForward,
-        ArrowUp: goStart,
-        Home: goStart,
-        ArrowDown: goEnd,
-        End: goEnd,
-        f: () => setOrientation((o) => (o === 'white' ? 'black' : 'white')),
-      };
-      const action = actions[event.key];
+      if (target.closest('input, textarea') || pgnOpen || renaming) return;
+      if (helpOpen) {
+        if (event.key === 'Escape' || event.key === '?') setHelpOpen(false);
+        return;
+      }
+      const ctrl = event.ctrlKey || event.metaKey;
+      let action: (() => void) | undefined;
+
+      if (chooser && !ctrl && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        const count = tree.nodes[chooser.forkId].children.length;
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        action = () => setChooser({ ...chooser, index: (chooser.index + step + count) % count });
+      } else if (ctrl) {
+        const ctrlActions: Record<string, () => void> = {
+          ArrowUp: () => select(switchLine(tree, currentId, -1)),
+          ArrowDown: () => select(switchLine(tree, currentId, 1)),
+          ArrowLeft: () => select(forkAbove(tree, currentId)?.forkId ?? tree.rootId),
+          ArrowRight: () => select(nextFork(tree, currentId) ?? lineEnd(tree, currentId)),
+        };
+        action = ctrlActions[event.key];
+      } else if (!event.altKey) {
+        const actions: Record<string, () => void> = {
+          ArrowLeft: () => (chooser ? setChooser(null) : goBack()),
+          ArrowRight: goForward,
+          Escape: () => {
+            setChooser(null);
+            setMenu(null);
+          },
+          Home: goStart,
+          End: goEnd,
+          f: flip,
+          F: flip,
+          t: toggleTab,
+          T: toggleTab,
+          '?': () => setHelpOpen(true),
+        };
+        if (chooser) actions.Enter = goForward;
+        action = actions[event.key];
+      }
+
       if (action) {
         event.preventDefault();
         action();
@@ -113,16 +199,18 @@ export default function App() {
 
   const engineCurrent = engineEnabled && engine.fen === current.fen;
   const bestScore = engineCurrent ? engine.lines[0]?.score : undefined;
-  const arrows: Arrow[] =
-    engineCurrent && engine.lines[0]?.pv[0]
-      ? [
-          {
-            startSquare: engine.lines[0].pv[0].slice(0, 2),
-            endSquare: engine.lines[0].pv[0].slice(2, 4),
-            color: 'rgba(80, 150, 230, 0.8)',
-          },
-        ]
-      : [];
+  const arrows: Arrow[] = [];
+  if (engineCurrent && engine.lines[0]?.pv[0]) {
+    const best = engine.lines[0].pv[0];
+    arrows.push({ startSquare: best.slice(0, 2), endSquare: best.slice(2, 4), color: 'rgba(80, 150, 230, 0.8)' });
+  }
+  // Preview the move the chooser is pointing at.
+  if (chooser) {
+    const preview = tree.nodes[tree.nodes[chooser.forkId].children[chooser.index]];
+    if (preview?.from && preview.to) {
+      arrows.push({ startSquare: preview.from, endSquare: preview.to, color: 'rgba(250, 190, 40, 0.9)' });
+    }
+  }
 
   const copy = async (text: string, label: string) => {
     try {
@@ -136,7 +224,7 @@ export default function App() {
   const reset = () => {
     const fresh = createTree();
     setTree(fresh);
-    setCurrentId(fresh.rootId);
+    select(fresh.rootId);
   };
 
   const status = (() => {
@@ -149,9 +237,17 @@ export default function App() {
 
   const topColor = orientation === 'white' ? 'black' : 'white';
   const bottomColor = orientation;
+  const sideLines = layout.lines.length - 1;
+  const openMenu = (nodeId: string, x: number, y: number) => setMenu({ nodeId, x, y });
 
   return (
-    <div className="app" onClick={() => setMenu(null)}>
+    <div
+      className="app"
+      onClick={() => {
+        setMenu(null);
+        setChooser(null);
+      }}
+    >
       <main className="board-column">
         <div className="board-frame">
           <div className="player">
@@ -194,33 +290,59 @@ export default function App() {
             <span>{current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
           )}
         </div>
-        <div className="moves-scroll">
-          <MoveList
-            tree={tree}
-            currentId={currentId}
-            onSelect={setCurrentId}
-            onContextMenu={(nodeId, x, y) => setMenu({ nodeId, x, y })}
-          />
+
+        <div className="tabs" role="tablist" aria-label="Move view">
+          {(['moves', 'tree'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              className={`tab${tab === value ? ' tab-active' : ''}`}
+              onClick={() => setTab(value)}
+            >
+              {value === 'moves' ? 'Moves' : 'Tree'}
+            </button>
+          ))}
+          <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : ''}</span>
+          <button type="button" className="tabs-help" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)">
+            ?
+          </button>
         </div>
+        <div className={`moves-scroll${tab === 'tree' ? ' moves-scroll-tree' : ''}`}>
+          {tab === 'moves' ? (
+            <MoveList tree={tree} layout={layout} currentId={currentId} onSelect={select} onContextMenu={openMenu} />
+          ) : (
+            <TreeView tree={tree} layout={layout} currentId={currentId} onSelect={select} onContextMenu={openMenu} />
+          )}
+        </div>
+
         <nav className="nav" aria-label="Move navigation">
-          <button type="button" className="nav-button" onClick={goStart} disabled={!current.parentId} title="First move (↑)">
+          <button type="button" className="nav-button" onClick={goStart} disabled={!current.parentId} title="First move (Home)">
             ⏮
           </button>
           <button type="button" className="nav-button" onClick={goBack} disabled={!current.parentId} title="Previous move (←)">
             ◀
           </button>
-          <button type="button" className="nav-button" onClick={goForward} disabled={!current.children.length} title="Next move (→)">
+          <button
+            type="button"
+            className="nav-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              goForward();
+            }}
+            disabled={!current.children.length}
+            title="Next move (→)"
+          >
             ▶
           </button>
-          <button type="button" className="nav-button" onClick={goEnd} disabled={!current.children.length} title="Last move (↓)">
+          <button type="button" className="nav-button" onClick={goEnd} disabled={!current.children.length} title="End of line (End)">
             ⏭
           </button>
         </nav>
         <div className="toolbar">
           <button type="button" className="btn" onClick={reset}>New</button>
-          <button type="button" className="btn" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Flip board (F)">
-            Flip
-          </button>
+          <button type="button" className="btn" onClick={flip} title="Flip board (F)">Flip</button>
           <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
           <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
@@ -233,11 +355,20 @@ export default function App() {
           <button
             type="button"
             onClick={() => {
+              setRenaming(menu.nodeId);
+              setMenu(null);
+            }}
+          >
+            Name this line…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               setTree(promoteNode(tree, menu.nodeId));
               setMenu(null);
             }}
           >
-            Promote variation
+            Make main continuation
           </button>
           <button
             type="button"
@@ -245,7 +376,7 @@ export default function App() {
             onClick={() => {
               const result = deleteNode(tree, menu.nodeId);
               setTree(result.tree);
-              if (!result.tree.nodes[currentId]) setCurrentId(result.parentId);
+              if (!result.tree.nodes[currentId]) select(result.parentId);
               setMenu(null);
             }}
           >
@@ -254,16 +385,41 @@ export default function App() {
         </div>
       )}
 
+      {chooser && (
+        <LineChooser
+          tree={tree}
+          layout={layout}
+          forkId={chooser.forkId}
+          selected={chooser.index}
+          anchor={chooser}
+          onPick={(index) => select(tree.nodes[chooser.forkId].children[index])}
+        />
+      )}
+
       {pgnOpen && (
         <PgnDialog
           onClose={() => setPgnOpen(false)}
           onImport={(imported) => {
             setTree(imported);
-            setCurrentId(imported.rootId);
+            select(imported.rootId);
             setPgnOpen(false);
           }}
         />
       )}
+
+      {renaming && tree.nodes[renaming] && (
+        <RenameDialog
+          initial={tree.nodes[renaming].name ?? ''}
+          san={tree.nodes[renaming].san ?? ''}
+          onClose={() => setRenaming(null)}
+          onSave={(name) => {
+            setTree(renameNode(tree, renaming, name));
+            setRenaming(null);
+          }}
+        />
+      )}
+
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -296,6 +452,49 @@ function PgnDialog({ onClose, onImport }: { onClose: () => void; onImport: (tree
           <button type="button" className="btn" onClick={submit} disabled={!text.trim()}>Import</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RenameDialog({
+  initial,
+  san,
+  onClose,
+  onSave,
+}: {
+  initial: string;
+  san: string;
+  onClose: () => void;
+  onSave: (name: string) => void;
+}) {
+  const [name, setName] = useState(initial);
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <form
+        className="dialog"
+        role="dialog"
+        aria-label="Name this line"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(name);
+        }}
+      >
+        <h2>Name the line starting with {san}</h2>
+        <input
+          className="dialog-input"
+          autoFocus
+          value={name}
+          maxLength={40}
+          placeholder="e.g. Queen sac, Main prep, Safe line"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        />
+        <div className="dialog-actions">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn">Save</button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -79,7 +79,7 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
 
   const squareStyles: Record<string, CSSProperties> = {};
   if (lastMove) {
-    squareStyles[lastMove.from] = { background: 'var(--board-lastMove)' };
+    squareStyles[lastMove.from] = { background: 'var(--board-lastMove-from)' };
     squareStyles[lastMove.to] = { background: 'var(--board-lastMove)' };
   }
   const position = new Chess(fen);
@@ -91,7 +91,10 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     if (king) squareStyles[king.square] = { background: 'var(--board-check)' };
   }
   if (selected) {
-    squareStyles[selected] = { background: 'var(--board-selected)' };
+    squareStyles[selected] = {
+      background: 'var(--board-selected)',
+      boxShadow: 'inset 0 0 0 3px var(--board-selected-ring)',
+    };
     for (const move of position.moves({ square: selected, verbose: true })) {
       squareStyles[move.to] = move.isCapture()
         ? { background: 'radial-gradient(circle, transparent 58%, var(--board-legalMove) 60%)' }
@@ -105,9 +108,13 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     boardOrientation: orientation,
     onPieceDrop,
     onSquareClick,
+    // Show the active piece and its targets while it is being dragged too.
+    onPieceDrag: ({ square }) => {
+      if (square) setSelected(square as Square);
+    },
     squareStyles,
     arrows,
-    animationDurationInMs: 160,
+    animationDurationInMs: 180,
     showNotation: true,
     allowDragging: true,
     lightSquareStyle: { backgroundColor: 'var(--board-light)' },
