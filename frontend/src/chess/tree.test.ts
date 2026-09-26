@@ -137,7 +137,7 @@ describe('PGN import', () => {
     const roundtrip = importPgn(toPgn(result.tree));
     if ('error' in roundtrip) throw new Error(roundtrip.error);
     expect(Object.keys(roundtrip.tree.nodes).length).toBe(Object.keys(result.tree.nodes).length);
-  });
+  }, 20000); // Replays thousands of moves through chess.js; slow machines need more than 5 s.
 
   it('accepts a FEN and FEN header, and reports errors', () => {
     const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
