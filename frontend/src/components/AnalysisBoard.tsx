@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import {
   type Arrow,
   Chessboard,
@@ -23,6 +23,16 @@ const PROMOTION_PIECES = [
   { piece: 'b', white: '♗', black: '♝', label: 'Bishop' },
   { piece: 'n', white: '♘', black: '♞', label: 'Knight' },
 ];
+
+const KEYBOARD_DRAG_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
+
+function blockKeyboardDrag(event: KeyboardEvent<HTMLDivElement>) {
+  const target = event.target as HTMLElement;
+  if (KEYBOARD_DRAG_KEYS.has(event.code) && target.getAttribute('aria-roledescription') === 'draggable') {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
 
 function isPromotion(fen: string, from: string, to: string): boolean {
   return new Chess(fen)
@@ -49,10 +59,21 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     latest.current = { fen, onMove };
   });
 
+  useEffect(() => {
+    if (!promotion) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setPending(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [promotion]);
+
   const attempt = (from: string, to: string): boolean => {
     const { fen: currentFen, onMove: play } = latest.current;
     if (isPromotion(currentFen, from, to)) {
       setPending({ fen: currentFen, from, to });
+      // Cancelling the picker should leave nothing selected, so the next click starts fresh.
+      setSelection(null);
       return false;
     }
     const ok = play({ from, to });
@@ -117,6 +138,8 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
     animationDurationInMs: 180,
     showNotation: true,
     allowDragging: true,
+    // Keep a dragged piece within half a square of the board edge.
+    allowDragOffBoard: false,
     lightSquareStyle: { backgroundColor: 'var(--board-light)' },
     darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
   };
@@ -124,7 +147,10 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, onMove }: Pr
   const whiteToMove = position.turn() === 'w';
 
   return (
-    <div className="board">
+    // A clicked piece keeps focus, and dnd-kit would pick it up on Space/Enter and
+    // then steer it with the arrow keys the app uses for navigation. Stop those keys
+    // before they reach the piece; the app's own shortcuts listen in the capture phase.
+    <div className="board" onKeyDownCapture={blockKeyboardDrag}>
       <Chessboard options={options} />
       {promotion && (
         <div className="dialog-backdrop" onClick={() => setPending(null)}>
