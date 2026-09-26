@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="color-scheme:light only" width="45" height="45" viewBox="0 0 45 45"><defs>
+<linearGradient id="fill" x1="0" y1="0" x2="0.35" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.96"/>
+<stop offset="0.45" stop-color="#eef4f9" stop-opacity="0.82"/>
+<stop offset="1" stop-color="#c3d3e0" stop-opacity="0.78"/>
+</linearGradient>
+<filter id="glass" x="-25%" y="-20%" width="150%" height="150%" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="0.8" result="soft"/>
+<feSpecularLighting in="soft" surfaceScale="3" specularConstant="0.9" specularExponent="24" lighting-color="#ffffff" result="spec">
+<feDistantLight azimuth="240" elevation="52"/>
+</feSpecularLighting>
+<feComposite in="spec" in2="SourceAlpha" operator="in" result="shine"/>
+<feOffset in="SourceAlpha" dy="1.1" result="drop"/>
+<feGaussianBlur in="drop" stdDeviation="0.9" result="dropSoft"/>
+<feColorMatrix in="dropSoft" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.35 0" result="shadow"/>
+<feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/><feMergeNode in="shine"/></feMerge>
+</filter>
+</defs><g filter="url(#glass)"><g fill="none" fill-rule="evenodd" stroke="#7d8f9e" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path fill="url(#fill)" d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21"/><path fill="url(#fill)" d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3"/><path fill="#7d8f9e" d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0m5.433-9.75a.5 1.5 30 1 1-.866-.5.5 1.5 30 1 1 .866.5"/></g></g></svg>

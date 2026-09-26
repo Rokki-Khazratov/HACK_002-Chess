@@ -68,12 +68,13 @@
   overflow: hidden;
 }
 
-/* ---------- Tree graph ---------- */
+/* ---------- Tree graph: git-style lines and commit dots ---------- */
 .tree-view {
+  --tree-bg: #181713;
   position: relative;
   flex: 1;
   min-height: 0;
-  background: radial-gradient(ellipse at 30% 20%, #25232a 0%, var(--color-bg-primary) 70%);
+  background: radial-gradient(ellipse 90% 80% at 50% 40%, #1f1d19 0%, #151411 100%);
 }
 
 .tree-viewport {
@@ -88,44 +89,123 @@
   cursor: grabbing;
 }
 
-.tree-dot {
-  fill: rgba(255, 255, 255, 0.06);
-}
-
 .tree-tick {
-  fill: var(--color-text-tertiary);
+  fill: #6f6a60;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
 .tree-edge {
   fill: none;
-  stroke-width: 1.5;
-  opacity: 0.35;
-  transition: opacity 200ms ease-out, stroke-width 200ms ease-out;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.45;
+  transition: opacity 200ms ease-out;
 }
 
 .tree-edge-active {
-  stroke-width: 2.5;
-  opacity: 0.95;
+  opacity: 1;
 }
 
 .tree-line-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
-}
-
-.tree-root {
-  fill: var(--color-text-tertiary);
-  cursor: pointer;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .tree-node {
   cursor: pointer;
 }
 
-.tree-node rect {
+.tree-hit {
+  fill: transparent;
+}
+
+.tree-dot {
+  fill: var(--line-color);
+  stroke: var(--tree-bg);
+  stroke-width: 2;
+  opacity: 0.6;
+  transition: opacity 160ms ease-out;
+}
+
+.tree-node-active .tree-dot,
+.tree-node:hover .tree-dot {
+  opacity: 1;
+}
+
+/* A fork is an open ring, like a merge point in a git graph. */
+.tree-node-fork .tree-dot {
+  fill: var(--tree-bg);
+  stroke: var(--line-color);
+  stroke-width: 2;
+}
+
+.tree-node-current .tree-dot {
+  fill: var(--tree-bg);
+  stroke: #f2efe8;
+  stroke-width: 2.5;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.35));
+}
+
+.tree-san {
+  fill: #8f887a;
+  font-size: 11px;
+  pointer-events: none;
+  transition: fill 160ms ease-out;
+}
+
+.tree-node-active .tree-san,
+.tree-node:hover .tree-san {
+  fill: #e9e4d8;
+}
+
+.tree-node-current .tree-san {
+  fill: #fff;
+  font-weight: 700;
+}
+
+/* ---------- Tree graph: original pill look (optional) ---------- */
+.tree-look-pills {
+  background: radial-gradient(ellipse at 30% 20%, #25232a 0%, var(--color-bg-primary) 70%);
+}
+
+.pill-grid-dot {
+  fill: rgba(255, 255, 255, 0.06);
+}
+
+.pill-edge {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.35;
+  transition: opacity 200ms ease-out, stroke-width 200ms ease-out;
+}
+
+.pill-edge-active {
+  stroke-width: 2.5;
+  opacity: 0.95;
+}
+
+.pill-line-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.pill-root {
+  fill: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+.pill-root.tree-node-current {
+  fill: var(--color-accent-primary);
+}
+
+.pill-node rect {
   fill: #2b2930;
   stroke: var(--line-color);
   stroke-width: 1;
@@ -133,33 +213,33 @@
   transition: fill 160ms ease-out, stroke-opacity 160ms ease-out;
 }
 
-.tree-node text {
+.pill-node text {
   fill: var(--color-text-secondary);
   font-size: 12px;
   pointer-events: none;
 }
 
-.tree-node:hover rect {
+.pill-node:hover rect {
   fill: #3a3842;
   stroke-opacity: 1;
 }
 
-.tree-node-active rect {
+.pill-node-active rect {
   stroke-opacity: 1;
   stroke-width: 1.5;
 }
 
-.tree-node-active text {
+.pill-node-active text {
   fill: var(--color-text-primary);
 }
 
-.tree-node-current rect {
+.pill-node.tree-node-current rect {
   fill: var(--line-color);
   stroke: #fff;
   stroke-opacity: 0.9;
 }
 
-.tree-node-current text {
+.pill-node.tree-node-current text {
   fill: #151418;
   font-weight: 700;
 }
@@ -173,27 +253,87 @@ circle.tree-node-current {
   fill: var(--color-accent-primary);
 }
 
-.tree-controls {
+.tree-tools {
   position: absolute;
   right: var(--space-2);
   bottom: var(--space-2);
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-.tree-controls button {
-  min-width: 28px;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xs);
-  background: rgba(38, 37, 34, 0.9);
-  font-size: 13px;
+.tree-tools-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(24, 23, 20, 0.92);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.tree-tools:hover .tree-tools-bar,
+.tree-tools:has(:focus-visible) .tree-tools-bar,
+.tree-tools.is-open .tree-tools-bar {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.tree-tools-bar button {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #d8d3c8;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.tree-controls button:hover {
-  background: var(--color-surface-hover);
+.tree-tools-bar button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tree-tools-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tree-tools-look {
+  white-space: nowrap;
+}
+
+.tree-tools-toggle {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: rgba(24, 23, 20, 0.7);
+  color: #a39c8e;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 160ms ease-out, background 160ms ease-out;
+}
+
+.tree-tools:hover .tree-tools-toggle,
+.tree-tools.is-open .tree-tools-toggle {
+  opacity: 1;
+}
+
+.tree-tools.is-open .tree-tools-toggle {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 /* ---------- Line chooser ---------- */

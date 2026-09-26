@@ -1,4 +1,5 @@
 import { Chess, type Move } from 'chess.js';
+import { type Shape, formatShapes } from './shapes';
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 export const ROOT_ID = 'root';
@@ -17,6 +18,8 @@ export interface MoveNode {
   to: string | null;
   /** Optional user label for the line that starts at this node ("Qc3 sac"). */
   name?: string;
+  /** Squares and arrows the user drew on this position. */
+  shapes?: Shape[];
 }
 
 export interface MoveTree {
@@ -160,6 +163,11 @@ export function toPgn(tree: MoveTree): string {
   const headers =
     root.fen === START_FEN ? '' : `[SetUp "1"]\n[FEN "${root.fen}"]\n\n`;
 
+  const marks = (node: MoveNode) => {
+    const commands = formatShapes(node.shapes);
+    return commands ? ` {${commands}}` : '';
+  };
+
   const line = (startId: string, forceNumber: boolean): string => {
     const parts: string[] = [];
     let id: string | undefined = startId;
@@ -167,9 +175,10 @@ export function toPgn(tree: MoveTree): string {
     while (id) {
       const node: MoveNode = tree.nodes[id];
       const white = isWhiteMove(tree, node);
-      if (white || needNumber) parts.push(`${moveNumberLabel(tree, node)} ${node.san}`);
-      else parts.push(node.san!);
-      needNumber = false;
+      if (white || needNumber) parts.push(`${moveNumberLabel(tree, node)} ${node.san}${marks(node)}`);
+      else parts.push(`${node.san}${marks(node)}`);
+      // A comment breaks the move pair, so Black's reply needs its number again.
+      needNumber = Boolean(node.shapes?.length);
 
       const parent = tree.nodes[node.parentId!];
       if (parent.children[0] === id) {
@@ -184,7 +193,15 @@ export function toPgn(tree: MoveTree): string {
   };
 
   const first = root.children[0];
-  return headers + (first ? `${line(first, true)} *` : '*');
+  const rootMarks = marks(root).trimStart();
+  const start = rootMarks ? `${rootMarks} ` : '';
+  return headers + start + (first ? `${line(first, true)} *` : '*');
+}
+
+/** Replaces the user's squares and arrows on `nodeId`. */
+export function setShapes(tree: MoveTree, nodeId: string, shapes: Shape[]): MoveTree {
+  const node = tree.nodes[nodeId];
+  return { ...tree, nodes: { ...tree.nodes, [nodeId]: { ...node, shapes: shapes.length ? shapes : undefined } } };
 }
 
 /** Sets or clears the user label of the line starting at `nodeId`. */

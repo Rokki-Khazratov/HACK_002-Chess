@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties, type PointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Arrow } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import './App.css';
@@ -7,6 +7,8 @@ import { AnalysisBoard } from './components/AnalysisBoard';
 import { ChatPanel } from './components/ChatPanel';
 import { EnginePanel } from './components/EnginePanel';
 import { EvalBar } from './components/EvalBar';
+import { BoardSettingsDialog } from './settings/BoardSettingsDialog';
+import { useBoardSettings, withAlpha } from './settings/boardSettings';
 import { LineChooser } from './components/LineChooser';
 import { MoveList } from './components/MoveList';
 import { PlayerAvatar } from './components/PlayerAvatar';
@@ -20,6 +22,7 @@ import { MOCK_PGN } from './dev/mockGame';
 import {
   type MoveInput,
   type MoveTree,
+  START_FEN,
   addMove,
   createTree,
   deleteNode,
@@ -28,6 +31,7 @@ import {
   nextFork,
   promoteNode,
   renameNode,
+  setShapes,
   switchLine,
   toPgn,
 } from './chess/tree';
@@ -42,7 +46,7 @@ const MOCK_GAME = {
 } as GameDetail;
 type PanelTab = 'moves' | 'tree';
 
-function PlayerStrip({ game, color }: { game?: GameDetail; color: 'white' | 'black' }) {
+function PlayerStrip({ game, color, children }: { game?: GameDetail; color: 'white' | 'black'; children?: ReactNode }) {
   const id = color === 'white' ? game?.white_id : game?.black_id;
   const name = color === 'white' ? game?.white_name : game?.black_name;
   const federation = color === 'white' ? game?.white_fed : game?.black_fed;
@@ -55,6 +59,7 @@ function PlayerStrip({ game, color }: { game?: GameDetail; color: 'white' | 'bla
         : <span>{name || (color === 'white' ? 'White' : 'Black')}</span>}
       {game && <span className="player-details"><span className="player-federation" aria-label={federation || 'Unknown federation'}><span className="player-flag" aria-hidden="true">{federation === 'RUS' ? '🏳️' : flag || '◇'}</span>{federation || 'Unknown federation'}</span><span>{rating ? `${rating} Elo` : 'Unrated'}</span></span>}
     </div>
+    {children}
   </div>;
 }
 
@@ -91,6 +96,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const [chooser, setChooser] = useState<{ forkId: string; index: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const boardSettings = useBoardSettings();
   const [mockLoaded, setMockLoaded] = useState(false);
   const [workspace, setWorkspace] = useState(storedWorkspace);
   const [moveIcons, setMoveIcons] = useState(storedMoveIcons);
@@ -243,8 +250,12 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.closest('input, textarea') || pgnOpen || renaming) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input, textarea') || pgnOpen || renaming || settingsOpen) return;
+      // Changing the position mid-drag would pull the square out from under the piece.
+      if (document.querySelector('#analysis-board-board [aria-pressed="true"]')) return;
+      // The promotion picker owns the keyboard until a piece is chosen or it is closed.
+      if (document.querySelector('[aria-label="Choose promotion piece"]')) return;
       if (helpOpen) {
         if (event.key === 'Escape' || event.key === '?') setHelpOpen(false);
         return;
@@ -299,8 +310,10 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
         action();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture phase: the board swallows Space/Enter on its pieces, and the chooser's
+    // Enter must still work while a clicked piece holds focus.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   });
 
   const opening = useMemo(() => openingAt(tree, currentId), [tree, currentId]);
@@ -310,12 +323,15 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const arrows: Arrow[] = [];
   if (engineCurrent && engine.lines[0]?.pv[0]) {
     const best = engine.lines[0].pv[0];
-    arrows.push({ startSquare: best.slice(0, 2), endSquare: best.slice(2, 4), color: 'rgba(80, 150, 230, 0.8)' });
+    arrows.push({ startSquare: best.slice(0, 2), endSquare: best.slice(2, 4), color: withAlpha(boardSettings.arrowColor, 0.8) });
   }
   // Preview the move the chooser is pointing at.
   if (chooser) {
     const preview = tree.nodes[tree.nodes[chooser.forkId].children[chooser.index]];
     if (preview?.from && preview.to) {
+      // One arrow per square pair: the board keys arrows by squares, and the preview wins.
+      const same = arrows.findIndex((a) => a.startSquare === preview.from && a.endSquare === preview.to);
+      if (same >= 0) arrows.splice(same, 1);
       arrows.push({ startSquare: preview.from, endSquare: preview.to, color: 'rgba(250, 190, 40, 0.9)' });
     }
   }
@@ -398,17 +414,35 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       </>}
       <main className="board-column">
         {!workspace.chatOpen && <button type="button" className="show-chat" onClick={() => setWorkspace((previous) => ({ ...previous, chatOpen: true }))}>Open coach</button>}
-        <div className="board-frame">
+        <div className={`board-frame${boardSettings.showEvalBar ? '' : ' board-frame-no-eval'}`}>
           <PlayerStrip game={activeGame} color={topColor} />
-          <EvalBar score={bestScore} flipped={orientation === 'black'} />
+          {boardSettings.showEvalBar && <EvalBar score={bestScore} flipped={orientation === 'black'} />}
           <AnalysisBoard
             fen={current.fen}
             lastMove={current.from && current.to ? { from: current.from, to: current.to } : null}
             orientation={orientation}
             arrows={arrows}
+            shapes={current.shapes ?? []}
+            onShapesChange={(shapes) => setTree((t) => setShapes(t, currentId, shapes))}
             onMove={play}
           />
-          <PlayerStrip game={activeGame} color={bottomColor} />
+          <PlayerStrip game={activeGame} color={bottomColor}>
+              <button
+                type="button"
+                className="board-settings-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSettingsOpen(true);
+                }}
+                title="Доска и фигуры"
+                aria-label="Настройки доски и фигур"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+          </PlayerStrip>
         </div>
       </main>
 
@@ -431,7 +465,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
               <span>{opening.name}</span>
             </>
           ) : (
-            <span>{current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
+            <span>{tree.nodes[tree.rootId].fen !== START_FEN ? 'Custom position' : current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
           )}
         </div>
 
@@ -567,6 +601,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       )}
 
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+
+      {settingsOpen && <BoardSettingsDialog onClose={() => setSettingsOpen(false)} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
