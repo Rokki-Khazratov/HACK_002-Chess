@@ -13,6 +13,7 @@ import {
   toPgn,
 } from './tree';
 import { layoutTree } from './layout';
+import { MOCK_PGN } from '../dev/mockGame';
 import { importPgn } from './pgn';
 import { openingAt } from './openings';
 import { formatScore, parseInfo, uciToSan } from '../engine/stockfish';
@@ -124,6 +125,15 @@ describe('PGN import', () => {
     const result = importPgn(pgn);
     if ('error' in result) throw new Error(result.error);
     expect(toPgn(result.tree)).toBe('1. e4 e5 (1... c5 2. Nf3 (2. c3 d5) 2... d6) 2. Nf3 Nc6 3. Bb5 a6 *');
+  });
+
+  it('loads the dev mock game with five side lines at move 6', () => {
+    const result = importPgn(MOCK_PGN);
+    if ('error' in result) throw new Error(result.error);
+    const layout = layoutTree(result.tree);
+    expect(layout.lines).toHaveLength(6);
+    expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].san).toBe('Nxe5');
+    expect(toPgn(result.tree)).toBe(MOCK_PGN);
   });
 
   it('accepts a FEN and FEN header, and reports errors', () => {

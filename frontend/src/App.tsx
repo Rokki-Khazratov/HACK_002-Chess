@@ -14,6 +14,7 @@ import { TreeView } from './components/TreeView';
 import { layoutTree } from './chess/layout';
 import { openingAt } from './chess/openings';
 import { importPgn } from './chess/pgn';
+import { MOCK_PGN } from './dev/mockGame';
 import {
   type MoveInput,
   type MoveTree,
@@ -227,6 +228,18 @@ export default function App() {
     select(fresh.rootId);
   };
 
+  /** Dev helper: replace the analysis with the mock game and jump to its last move. */
+  const loadMock = () => {
+    const result = importPgn(MOCK_PGN);
+    if ('error' in result) {
+      setToast(`Mock PGN failed: ${result.error}`);
+      return;
+    }
+    setTree(result.tree);
+    select(lineEnd(result.tree, result.tree.rootId));
+    setToast('Mock game loaded');
+  };
+
   const status = (() => {
     const chess = new Chess(current.fen);
     if (chess.isCheckmate()) return chess.turn() === 'w' ? 'Checkmate — Black wins' : 'Checkmate — White wins';
@@ -305,6 +318,16 @@ export default function App() {
             </button>
           ))}
           <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : ''}</span>
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              className="tabs-mock"
+              onClick={loadMock}
+              title="Dev only: load a Berlin Rio Gambit with five side lines"
+            >
+              Mock data
+            </button>
+          )}
           <button type="button" className="tabs-help" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)">
             ?
           </button>

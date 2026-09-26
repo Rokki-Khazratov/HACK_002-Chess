@@ -31,6 +31,21 @@
   font-size: 12px;
 }
 
+.tabs-mock {
+  padding: 2px 8px;
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tabs-mock:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-primary);
+}
+
 .tabs-help {
   width: 22px;
   height: 22px;
