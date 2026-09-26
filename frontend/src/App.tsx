@@ -30,6 +30,7 @@ import {
   nextFork,
   promoteNode,
   renameNode,
+  setShapes,
   switchLine,
   toPgn,
 } from './chess/tree';
@@ -315,6 +316,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
             lastMove={current.from && current.to ? { from: current.from, to: current.to } : null}
             orientation={orientation}
             arrows={arrows}
+            shapes={current.shapes ?? []}
+            onShapesChange={(shapes) => setTree((t) => setShapes(t, currentId, shapes))}
             onMove={play}
           />
           <PlayerStrip game={activeGame} color={bottomColor}>
