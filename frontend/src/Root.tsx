@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { GamesPage, TournamentsPage, TournamentPage } from './library/Catalog';
+import { GamesPage, TournamentsPage, TournamentPage, PlayerPage } from './library/Catalog';
 import './library/library.css';
 
 const App = lazy(() => import('./App'));
@@ -22,7 +22,7 @@ export default function Root() {
     window.scrollTo(0, 0);
   };
   const link = (next: string, label: string) => (
-    <a href={next} className={(path === next || (next === '/tournaments' && path.startsWith('/tournaments/')) || (next === '/' && path.startsWith('/games/'))) ? 'site-link active' : 'site-link'} onClick={(event) => {
+    <a href={next} className={(path === next || (next === '/tournaments' && path.startsWith('/tournaments/')) || (next === '/' && (path.startsWith('/games/') || path.startsWith('/players/')))) ? 'site-link active' : 'site-link'} onClick={(event) => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault(); navigate(next);
     }}>{label}</a>
@@ -31,8 +31,10 @@ export default function Root() {
   let page;
   const game = /^\/games\/(\d+)\/?$/.exec(path);
   const tournament = /^\/tournaments\/(\d+)\/?$/.exec(path);
+  const player = /^\/players\/(\d+)\/?$/.exec(path);
   if (game) page = <GamePage key={game[1]} id={Number(game[1])} navigate={navigate} />;
   else if (tournament) page = <TournamentPage key={tournament[1]} id={Number(tournament[1])} navigate={navigate} />;
+  else if (player) page = <PlayerPage key={player[1]} id={Number(player[1])} navigate={navigate} />;
   else if (path === '/tournaments') page = <TournamentsPage navigate={navigate} />;
   else if (path === '/analysis') page = <App />;
   else page = <GamesPage navigate={navigate} />;

@@ -45,6 +45,7 @@ export interface TournamentDetail extends Tournament {
   black_wins: number;
   draws: number;
 }
+export interface PlayerDetail { fide_id: number; name: string; federation: string | null; federation_basis: string | null; flag: string | null; games: number }
 export interface Overview { games: number; tournaments: number; players: number; years: { year: number; games: number }[] }
 
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {

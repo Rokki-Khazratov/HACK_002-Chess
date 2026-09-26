@@ -79,7 +79,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response({"error": "Не удалось открыть данные. Проверьте локальный журнал сервера."}, 500)
 
     def static(self, path):
-        if path == "/" or path == "/analysis" or path == "/tournaments" or re.fullmatch(r"/(games|tournaments)/\d+/?", path):
+        if path == "/" or path == "/analysis" or path == "/tournaments" or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
             file = DIST / "index.html"
         else:
             file = (DIST / path.lstrip("/")).resolve()
@@ -130,6 +130,16 @@ class Handler(BaseHTTPRequestHandler):
                 rows = db.execute("""SELECT fide_id,name,federation,federation_basis,games FROM players
                                    ORDER BY games DESC LIMIT 18""")
             self.json_response([dict(r) | {"flag": country(r["federation"])[1]} for r in rows]); return
+        player = re.fullmatch(r"/api/players/(\d+)", path)
+        if player:
+            fide_id = int(player.group(1))
+            row = db.execute("""SELECT fide_id,name,federation,federation_basis FROM players
+                                WHERE fide_id=? ORDER BY games DESC LIMIT 1""", (fide_id,)).fetchone()
+            if not row:
+                self.json_response({"error": "Игрок не найден"}, 404); return
+            games = db.execute("""SELECT count(*) FROM games WHERE white_id=? OR black_id=?""",
+                               (fide_id, fide_id)).fetchone()[0]
+            self.json_response(dict(row) | {"games": games, "flag": country(row["federation"])[1]}); return
         if path == "/api/federations":
             q = p.get("q", "").upper()[:3]
             rows = db.execute("SELECT code,games,flag FROM federations WHERE code LIKE ? ORDER BY games DESC LIMIT 30", (q + "%",))

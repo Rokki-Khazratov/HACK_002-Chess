@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Navigate } from '../Root';
 import { formatNumber, getJson } from './api';
-import type { GameList, GameSummary, Overview, TournamentDetail, TournamentList } from './api';
+import type { GameList, GameSummary, Overview, PlayerDetail, TournamentDetail, TournamentList } from './api';
 
 type Filters = {
   player: string; event: string; yearFrom: string; yearTo: string; federation: string;
@@ -37,11 +37,12 @@ function field(label: string, value: string, onChange: (value: string) => void, 
   return <label className="catalog-field"><span>{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /></label>;
 }
 
-function query(filters: Filters, page: number, sort: string, eventId?: number) {
+function query(filters: Filters, page: number, sort: string, eventId?: number, playerId?: number) {
   const p = new URLSearchParams({ page:String(page), limit:'24', sort });
+  if (playerId) p.set('player_id', String(playerId));
   if (eventId) p.set('event_id', String(eventId));
   else if (filters.event) p.set('event', filters.event);
-  if (filters.player) p.set(/^\d+$/.test(filters.player) ? 'player_id' : 'player', filters.player);
+  if (!playerId && filters.player) p.set(/^\d+$/.test(filters.player) ? 'player_id' : 'player', filters.player);
   for (const [key, value] of Object.entries({
     from: filters.yearFrom, to: filters.yearTo, federation:filters.federation.toUpperCase(), color:filters.color,
     result:filters.result, min_rating:filters.minRating, eco:filters.eco.toUpperCase(), opening:filters.opening,
@@ -50,14 +51,14 @@ function query(filters: Filters, page: number, sort: string, eventId?: number) {
   return p.toString();
 }
 
-function GameExplorer({ eventId, years }: { eventId?: number; years: number[] }) {
+function GameExplorer({ eventId, playerId, years }: { eventId?: number; playerId?: number; years: number[] }) {
   const [draft, setDraft] = useState<Filters>(empty);
   const [applied, setApplied] = useState<Filters>(empty);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState('newest');
   const [response, setResponse] = useState<{ key: string; data: GameList } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
-  const search = useMemo(() => query(applied, page, sort, eventId), [applied, page, sort, eventId]);
+  const search = useMemo(() => query(applied, page, sort, eventId, playerId), [applied, page, sort, eventId, playerId]);
   const data = response?.key === search ? response.data : null;
   const error = failure?.key === search ? failure.message : '';
 
@@ -76,7 +77,7 @@ function GameExplorer({ eventId, years }: { eventId?: number; years: number[] })
   return <>
     <form className="catalog-filters" onSubmit={submit}>
       <div className="filter-primary">
-        {field('Игрок', draft.player, update('player'), 'Имя или FIDE ID')}
+        {!playerId && field('Игрок', draft.player, update('player'), 'Имя или FIDE ID')}
         {!eventId && field('Турнир', draft.event, update('event'), 'Название турнира')}
         <label className="catalog-field"><span>Год от</span><select value={draft.yearFrom} onChange={(e) => update('yearFrom')(e.target.value)}><option value="">Любой</option>{years.map((year) => <option key={year}>{year}</option>)}</select></label>
         <label className="catalog-field"><span>Год до</span><select value={draft.yearTo} onChange={(e) => update('yearTo')(e.target.value)}><option value="">Любой</option>{years.map((year) => <option key={year}>{year}</option>)}</select></label>
@@ -158,5 +159,30 @@ export function TournamentPage({ id, navigate }: { id: number; navigate: Navigat
     <div className="tournament-facts"><div><strong>{formatNumber(detail.games)}</strong><span>партий</span></div><div><strong>{detail.first_date || '—'}</strong><span>первая запись</span></div><div><strong>{detail.last_date || '—'}</strong><span>последняя запись</span></div><div><strong>{detail.sources}</strong><span>источников</span></div></div>
     <div className="tournament-secondary"><span>Годы: {detail.years.map((item) => `${item.year} (${formatNumber(item.games)})`).join(', ') || 'не указаны'}</span><span>Результаты: {detail.white_wins || 0} / {detail.draws || 0} / {detail.black_wins || 0}</span></div>
     <h2 className="section-title">Партии турнира</h2><GameExplorer eventId={id} years={overview?.years.map((item) => item.year) || []} />
+  </main>;
+}
+
+export function PlayerPage({ id, navigate }: { id: number; navigate: Navigate }) {
+  const [player, setPlayer] = useState<PlayerDetail | null>(null);
+  const [error, setError] = useState('');
+  const [overview, setOverview] = useState<Overview | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    getJson<PlayerDetail>(`/api/players/${id}`, controller.signal).then((next) => {
+      setPlayer(next);
+      document.title = `${next.name} · ChessScope`;
+    }).catch((e: Error) => { if (!controller.signal.aborted) setError(e.message); });
+    getJson<Overview>('/api/overview', controller.signal).then(setOverview).catch(() => {});
+    return () => { controller.abort(); document.title = 'ChessScope'; };
+  }, [id]);
+  if (error) return <main className="catalog-page"><button className="back-link" onClick={() => navigate('/')}>← К партиям</button><div className="catalog-empty">{error}</div></main>;
+  if (!player) return <main className="catalog-page"><div className="catalog-empty">Загружаем профиль игрока…</div></main>;
+  return <main className="catalog-page player-page">
+    <button className="back-link" onClick={() => navigate('/')}>← К партиям</button>
+    <div className="catalog-intro"><div><h1>{player.flag && <span className="catalog-flag" aria-hidden="true">{player.flag}</span>}{player.name}</h1>
+      <p>{player.federation || 'Федерация неизвестна'} · FIDE ID {player.fide_id}</p></div>
+      <div className="player-page-count"><strong>{formatNumber(player.games)}</strong><span>партий в библиотеке</span></div></div>
+    <h2 className="section-title">Партии игрока</h2>
+    <GameExplorer playerId={id} years={overview?.years.map((item) => item.year) || []} />
   </main>;
 }

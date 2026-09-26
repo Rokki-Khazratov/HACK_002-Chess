@@ -262,11 +262,14 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
         setChooser(null);
       }}
     >
+      <ChatPanel fen={current.fen} />
       <main className="board-column">
         <div className="board-frame">
           <div className="player">
             <span className={`player-avatar player-avatar-${topColor}`} />
-            {topColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
+            {game && (topColor === 'white' ? game.white_id : game.black_id)
+              ? <a className="board-player-link" href={`/players/${topColor === 'white' ? game.white_id : game.black_id}`}>{topColor === 'white' ? game.white_name : game.black_name}</a>
+              : topColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
             {game && <span className="player-rating">{topColor === 'white' ? game.white_rating : game.black_rating}</span>}
           </div>
           <EvalBar score={bestScore} flipped={orientation === 'black'} />
@@ -279,7 +282,9 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
           />
           <div className="player">
             <span className={`player-avatar player-avatar-${bottomColor}`} />
-            {bottomColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
+            {game && (bottomColor === 'white' ? game.white_id : game.black_id)
+              ? <a className="board-player-link" href={`/players/${bottomColor === 'white' ? game.white_id : game.black_id}`}>{bottomColor === 'white' ? game.white_name : game.black_name}</a>
+              : bottomColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
             {game && <span className="player-rating">{bottomColor === 'white' ? game.white_rating : game.black_rating}</span>}
           </div>
         </div>
@@ -321,16 +326,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
             </button>
           ))}
           <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : ''}</span>
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="tabs-mock"
-              onClick={loadMock}
-              title="Dev only: load a Berlin Rio Gambit with five side lines"
-            >
-              Mock data
-            </button>
-          )}
+          <button type="button" className="tabs-mock" onClick={loadMock} title="Загрузить пример партии с вариантами">Mock data</button>
           <button type="button" className="tabs-help" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)">
             ?
           </button>
@@ -373,7 +369,6 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Копировать PGN</button>
           <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Копировать FEN</button>
         </div>
-        <ChatPanel fen={current.fen} />
       </aside>
 
       {menu && (

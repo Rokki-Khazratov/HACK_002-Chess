@@ -48,7 +48,7 @@ export function GamePage({ id, navigate }: { id: number; navigate: Navigate }) {
   return <main className="game-page">
     <div className="game-page-heading">
       <div><button className="back-link" type="button" onClick={() => navigate('/')}>← К партиям</button>
-        <h1>{game.white_name} <span>—</span> {game.black_name}</h1>
+        <h1>{game.white_id ? <a href={`/players/${game.white_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${game.white_id}`); }}>{game.white_name}</a> : game.white_name} <span>—</span> {game.black_id ? <a href={`/players/${game.black_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${game.black_id}`); }}>{game.black_name}</a> : game.black_name}</h1>
         <div className="game-page-context"><a href={`/tournaments/${game.event_id}`} onClick={(e) => { e.preventDefault(); navigate(`/tournaments/${game.event_id}`); }}>{game.tournament}</a>
           <span>{game.played_on || 'Дата неизвестна'}</span>{game.round && <span>Раунд {game.round}</span>}{game.eco && <span>{game.eco}</span>}</div></div>
       <div className="game-page-actions"><a href={`/api/games/${id}/pgn`} download>Скачать PGN</a>{source && <a href={source} target="_blank" rel="noopener noreferrer">Источник ↗</a>}</div>
