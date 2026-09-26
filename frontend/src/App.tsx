@@ -21,6 +21,7 @@ import './ui/variants.css';
 import {
   type MoveInput,
   type MoveTree,
+  START_FEN,
   addMove,
   createTree,
   deleteNode,
@@ -151,8 +152,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.closest('input, textarea') || pgnOpen || renaming) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input, textarea') || pgnOpen || renaming) return;
+      // Changing the position mid-drag would pull the square out from under the piece.
+      if (document.querySelector('#analysis-board-board [aria-pressed="true"]')) return;
+      // The promotion picker owns the keyboard until a piece is chosen or it is closed.
+      if (document.querySelector('[aria-label="Choose promotion piece"]')) return;
       if (helpOpen) {
         if (event.key === 'Escape' || event.key === '?') setHelpOpen(false);
         return;
@@ -197,8 +202,10 @@ export default function App() {
         action();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture phase: the board swallows Space/Enter on its pieces, and the chooser's
+    // Enter must still work while a clicked piece holds focus.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   });
 
   const opening = useMemo(() => openingAt(tree, currentId), [tree, currentId]);
@@ -214,6 +221,9 @@ export default function App() {
   if (chooser) {
     const preview = tree.nodes[tree.nodes[chooser.forkId].children[chooser.index]];
     if (preview?.from && preview.to) {
+      // One arrow per square pair: the board keys arrows by squares, and the preview wins.
+      const same = arrows.findIndex((a) => a.startSquare === preview.from && a.endSquare === preview.to);
+      if (same >= 0) arrows.splice(same, 1);
       arrows.push({ startSquare: preview.from, endSquare: preview.to, color: 'rgba(250, 190, 40, 0.9)' });
     }
   }
@@ -305,7 +315,7 @@ export default function App() {
               <span>{opening.name}</span>
             </>
           ) : (
-            <span>{current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
+            <span>{tree.nodes[tree.rootId].fen !== START_FEN ? 'Custom position' : current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
           )}
         </div>
     ),
