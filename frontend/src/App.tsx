@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Arrow } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import './App.css';
@@ -15,6 +15,9 @@ import { layoutTree } from './chess/layout';
 import { openingAt } from './chess/openings';
 import { importPgn } from './chess/pgn';
 import { MOCK_PGN } from './dev/mockGame';
+import { UiSwitcher } from './ui/UiSwitcher';
+import { type Section, UI_VARIANTS, initialVariant, rememberVariant } from './ui/variants';
+import './ui/variants.css';
 import {
   type MoveInput,
   type MoveTree,
@@ -55,6 +58,8 @@ export default function App() {
   const [chooser, setChooser] = useState<{ forkId: string; index: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [variantId, setVariantId] = useState(initialVariant);
+  const variant = UI_VARIANTS.find((v) => v.id === variantId) ?? UI_VARIANTS[0];
 
   const current = tree.nodes[currentId];
   const layout = useMemo(() => layoutTree(tree), [tree]);
@@ -253,14 +258,10 @@ export default function App() {
   const sideLines = layout.lines.length - 1;
   const openMenu = (nodeId: string, x: number, y: number) => setMenu({ nodeId, x, y });
 
-  return (
-    <div
-      className="app"
-      onClick={() => {
-        setMenu(null);
-        setChooser(null);
-      }}
-    >
+  const moveView = variant.splitTree ? 'moves' : tab;
+
+  const sections: Record<Section, ReactNode> = {
+    board: (
       <main className="board-column">
         <div className="board-frame">
           <div className="player">
@@ -281,9 +282,10 @@ export default function App() {
           </div>
         </div>
       </main>
-
-      <aside className="panel">
-        <h1 className="panel-title">Analysis</h1>
+    ),
+    title: <h1 className="panel-title">Analysis</h1>,
+    engine: (
+      <>
         <EnginePanel
           engine={engineCurrent || !engineEnabled ? engine : { ...engine, lines: [], depth: 0 }}
           enabled={engineEnabled}
@@ -291,6 +293,9 @@ export default function App() {
           onToggle={() => setEngineEnabled((on) => !on)}
           onPlayLine={playLine}
         />
+      </>
+    ),
+    opening: (
         <div className="opening" aria-live="polite">
           {status ? (
             <strong>{status}</strong>
@@ -303,9 +308,11 @@ export default function App() {
             <span>{current.ply === 0 ? 'Starting position' : 'Out of opening book'}</span>
           )}
         </div>
-
+    ),
+    moves: (
+      <div className="moves-section">
         <div className="tabs" role="tablist" aria-label="Move view">
-          {(['moves', 'tree'] as const).map((value) => (
+          {(variant.splitTree ? (['moves'] as const) : (['moves', 'tree'] as const)).map((value) => (
             <button
               key={value}
               type="button"
@@ -332,14 +339,17 @@ export default function App() {
             ?
           </button>
         </div>
-        <div className={`moves-scroll${tab === 'tree' ? ' moves-scroll-tree' : ''}`}>
-          {tab === 'moves' ? (
+        <div className={`moves-scroll${moveView === 'tree' ? ' moves-scroll-tree' : ''}`}>
+          {moveView === 'moves' ? (
             <MoveList tree={tree} layout={layout} currentId={currentId} onSelect={select} onContextMenu={openMenu} />
           ) : (
             <TreeView tree={tree} layout={layout} currentId={currentId} onSelect={select} onContextMenu={openMenu} />
           )}
         </div>
-
+      </div>
+    ),
+    nav: (
+      <div className="nav-section">
         <nav className="nav" aria-label="Move navigation">
           <button type="button" className="nav-button" onClick={goStart} disabled={!current.parentId} title="First move (Home)">
             ⏮
@@ -370,8 +380,40 @@ export default function App() {
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
           <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
         </div>
-        <ChatPanel fen={current.fen} />
-      </aside>
+      </div>
+    ),
+    chat: <ChatPanel fen={current.fen} />,
+    treeDock: (
+      <section className="tree-dock" aria-label="Tree of lines">
+        <header className="tree-dock-header">
+          <span>Lines</span>
+          <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : 'main line only'}</span>
+        </header>
+        <TreeView tree={tree} layout={layout} currentId={currentId} onSelect={select} onContextMenu={openMenu} />
+      </section>
+    ),
+  };
+
+  return (
+    <div
+      className={`app${import.meta.env.DEV ? ' app-with-switcher' : ''}`}
+      data-ui={variant.id}
+      style={{ ['--columns' as string]: String(variant.columns.length) }}
+      onClick={() => {
+        setMenu(null);
+        setChooser(null);
+      }}
+    >
+      {variant.columns.map((column, index) => (
+        <div
+          key={`${variant.id}-${index}`}
+          className={`ui-column ui-column-${index}${column.includes('board') ? ' ui-column-board' : ' panel'}`}
+        >
+          {column.map((section) => (
+            <Fragment key={section}>{sections[section]}</Fragment>
+          ))}
+        </div>
+      ))}
 
       {menu && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
@@ -443,6 +485,16 @@ export default function App() {
       )}
 
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+
+      {import.meta.env.DEV && (
+        <UiSwitcher
+          current={variant.id}
+          onChange={(id) => {
+            setVariantId(id);
+            rememberVariant(id);
+          }}
+        />
+      )}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
