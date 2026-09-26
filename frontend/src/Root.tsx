@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { GamesPage, TournamentsPage, TournamentPage, PlayerPage } from './library/Catalog';
 import { RatingsPage } from './library/RatingsPage';
 import './library/library.css';
+import { PreparePage } from './prepare/PreparePage';
 
 const App = lazy(() => import('./App'));
 const GamePage = lazy(() => import('./library/GamePage').then((module) => ({ default:module.GamePage })));
@@ -39,6 +40,7 @@ export default function Root() {
   else if (path === '/tournaments') page = <TournamentsPage navigate={navigate} />;
   else if (path === '/ratings') page = <RatingsPage navigate={navigate} />;
   else if (path === '/analysis') page = <App />;
+  else if (path === '/prepare' || path === '/prepare/') page = <PreparePage navigate={navigate} />;
   else page = <GamesPage navigate={navigate} />;
 
   return <div className="site-shell">
@@ -48,7 +50,7 @@ export default function Root() {
       </a>
       <nav className="site-nav" aria-label="Main navigation">
         {link('/', 'Games')}{link('/tournaments', 'Tournaments')}{link('/ratings', 'Ratings')}{link('/analysis', 'Board')}
-        <button type="button" className="site-link site-link-soon" disabled title="Prepare is coming soon">Prepare</button>
+        {link('/prepare/', 'Prepare')}
       </nav>
       <span className="site-edition">Local library</span>
     </header>

@@ -1,8 +1,12 @@
 """Local read-only JSON and static server. Binds to loopback only."""
 import json
 import mimetypes
+import os
 import re
 import sqlite3
+import ssl
+import urllib.error
+import urllib.request
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -87,8 +91,64 @@ class Handler(BaseHTTPRequestHandler):
             self.log_error("request failed: %s", exc)
             self.json_response({"error": "Could not open the data. Check the local server log."}, 500)
 
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/chat":
+            self.json_response({"error": "Unknown endpoint"}, 404)
+            return
+        api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+        if not api_key:
+            self.json_response({"error": "OpenRouter is not configured. Set OPENROUTER_API_KEY and restart the server."}, 503)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length < 1 or length > 32_000:
+                raise ValueError("Message is empty or too long")
+            payload = json.loads(self.rfile.read(length))
+            message = str(payload.get("message", "")).strip()[:4000]
+            if not message:
+                raise ValueError("Message is required")
+            data = json.dumps({
+                "model": "qwen/qwen3.8-27b:free",
+                "max_tokens": 256,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant in ChessScope, a chess analysis workspace. For now, answer general questions clearly. The current board position is provided as context; do not claim to have inspected game databases or run an engine."},
+                    {"role": "user", "content": f"Current position (FEN): {str(payload.get('fen', ''))[:200]}\n\nUser message: {message}"},
+                ],
+            }).encode()
+            request = urllib.request.Request(
+                "https://openrouter.ai/api/v1/chat/completions", data=data,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                method="POST",
+            )
+            ca_file = next((path for path in (
+                ssl.get_default_verify_paths().cafile,
+                "/etc/ssl/cert.pem",
+                "/etc/ssl/certs/ca-certificates.crt",
+            ) if path and Path(path).is_file()), None)
+            tls_context = ssl.create_default_context(cafile=ca_file)
+            with urllib.request.urlopen(request, timeout=60, context=tls_context) as response:
+                result = json.loads(response.read())
+            reply = result["choices"][0]["message"]["content"]
+            self.json_response({"reply": reply, "model": result.get("model")})
+        except ValueError as exc:
+            self.json_response({"error": str(exc)}, 400)
+        except urllib.error.HTTPError as exc:
+            try:
+                error_data = json.loads(exc.read()).get("error", {})
+                provider_error = error_data.get("message", "")
+                detail = error_data.get("metadata", {}).get("raw", "")
+                if detail:
+                    provider_error = f"{provider_error}: {detail}"
+            except (ValueError, AttributeError):
+                provider_error = ""
+            self.json_response({"error": f"OpenRouter request failed ({exc.code})" + (f": {provider_error[:300]}" if provider_error else ". Check the key and account access.")}, 502)
+        except Exception as exc:
+            self.log_error("chat request failed: %s", exc)
+            self.json_response({"error": "Could not reach OpenRouter. Try again."}, 502)
+
     def static(self, path):
-        if path in {"/", "/analysis", "/tournaments", "/ratings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
+        if path in {"/", "/analysis", "/prepare", "/prepare/", "/tournaments", "/ratings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
             file = DIST / "index.html"
         else:
             file = (DIST / path.lstrip("/")).resolve()
@@ -364,6 +424,12 @@ def serve(library, corpus, port=8765):
     if not (DIST / "index.html").is_file():
         raise FileNotFoundError("Build frontend first: cd frontend && npm ci && npm run build")
     Handler.library_path, Handler.corpus_path = library, corpus
+    secret_file = Path(".env.local")
+    if secret_file.is_file() and not os.environ.get("OPENROUTER_API_KEY"):
+        for line in secret_file.read_text().splitlines():
+            if line.startswith("OPENROUTER_API_KEY="):
+                os.environ["OPENROUTER_API_KEY"] = line.partition("=")[2].strip().strip("\"'")
+                break
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"ChessScope library: http://127.0.0.1:{port}", flush=True)
     httpd.serve_forever()

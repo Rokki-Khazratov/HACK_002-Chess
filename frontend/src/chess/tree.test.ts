@@ -12,7 +12,7 @@ import {
   switchLine,
   toPgn,
 } from './tree';
-import { layoutTree } from './layout';
+import { compactTreeLanes, layoutTree } from './layout';
 import { MOCK_PGN } from '../dev/mockGame';
 import { importPgn } from './pgn';
 import { openingAt } from './openings';
@@ -120,6 +120,18 @@ describe('branch navigation and layout', () => {
     const named = layoutTree(renameNode(tree, find(tree, ['e4', 'e6']), 'French try'));
     expect(named.lines[3].label).toBe('French try');
   });
+
+  it('reuses a graph row for variations at separate moves', () => {
+    const result = importPgn('1. e4 e5 (1... c5) 2. Nf3 Nc6 3. Bb5 a6 (3... Nf6) *');
+    if ('error' in result) throw new Error(result.error);
+    const tree = result.tree;
+    const compact = compactTreeLanes(tree, layoutTree(tree));
+    const early = tree.nodes[find(tree, ['e4'])].children.find((id) => tree.nodes[id].san === 'c5')!;
+    const late = tree.nodes[find(tree, ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'])].children.find((id) => tree.nodes[id].san === 'Nf6')!;
+    expect(compact.lanes[early]).toBe(1);
+    expect(compact.lanes[late]).toBe(1);
+    expect(compact.maxLane).toBe(1);
+  });
 });
 
 describe('PGN import', () => {
@@ -136,6 +148,7 @@ describe('PGN import', () => {
     const layout = layoutTree(result.tree);
     expect(layout.lines.length).toBe(57);
     expect(Object.keys(result.tree.nodes).length).toBe(575);
+    expect(compactTreeLanes(result.tree, layout).maxLane).toBeLessThan(20);
     expect(result.tree.nodes[lineEnd(result.tree, result.tree.rootId)].ply).toBe(271);
     const roundtrip = importPgn(toPgn(result.tree));
     if ('error' in roundtrip) throw new Error(roundtrip.error);

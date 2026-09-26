@@ -1,4 +1,4 @@
-import type { MoveTree } from './tree';
+import type { MoveNode, MoveTree } from './tree';
 
 /** Lane colours for side lines; lane 0 (the main line) uses the neutral text colour. */
 export const LINE_COLORS = ['#a78bfa', '#2dd4bf', '#fbbf24', '#f472b6', '#60a5fa', '#fb923c', '#a3e635'];
@@ -39,6 +39,41 @@ function colorFor(order: number): string {
 /** Colour of the line a node belongs to. */
 export function lineColor(layout: TreeLayout, nodeId: string): string {
   return layout.lines[layout.lanes[nodeId]]?.color ?? colorFor(0);
+}
+
+/**
+ * Rows used only by the graph. The persistent layout keeps a unique lane for
+ * every variation (and its stable label/color); the graph can reuse a row once
+ * a variation has ended, so distant forks do not create tall connectors.
+ */
+export function compactTreeLanes(tree: MoveTree, layout: TreeLayout): { lanes: Record<string, number>; maxLane: number } {
+  const lanes: Record<string, number> = {};
+  const occupiedUntil: number[] = [];
+  const lines = [...layout.lines].sort((a, b) => {
+    const diff = tree.nodes[a.startId].ply - tree.nodes[b.startId].ply;
+    return diff || a.lane - b.lane;
+  });
+  let maxLane = 0;
+
+  for (const line of lines) {
+    const start = tree.nodes[line.startId];
+    const parentLane = start.parentId ? lanes[start.parentId] ?? 0 : -1;
+    let lane = start.parentId ? parentLane + 1 : 0;
+    // Leave one empty column between unrelated line segments on a reused row.
+    while ((occupiedUntil[lane] ?? -2) >= start.ply - 1) lane++;
+
+    let id: string | undefined = start.id;
+    let endPly = start.ply;
+    while (id) {
+      const node: MoveNode = tree.nodes[id];
+      lanes[id] = lane;
+      endPly = node.ply;
+      id = node.children[0];
+    }
+    occupiedUntil[lane] = endPly;
+    maxLane = Math.max(maxLane, lane);
+  }
+  return { lanes, maxLane };
 }
 
 /**

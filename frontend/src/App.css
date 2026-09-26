@@ -560,6 +560,9 @@
 
 .chat-body {
   padding: 0 var(--space-4);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .chat-hint {
@@ -567,6 +570,10 @@
   color: var(--color-text-tertiary);
   font-size: 13px;
 }
+
+.chat-message { white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; margin: 10px 0; border-radius: var(--radius-sm); background: var(--color-bg-secondary); }
+.chat-message-user { background: var(--color-accent-muted); }
+.chat-error { color: var(--color-status-danger); font-size: 12px; }
 
 .chat-composer {
   display: flex;

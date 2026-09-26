@@ -1,5 +1,5 @@
 import { type PointerEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { type TreeLayout, lineColor } from '../chess/layout';
+import { type TreeLayout, compactTreeLanes, lineColor } from '../chess/layout';
 import { figurine } from '../chess/notation';
 import { type MoveTree, pathTo } from '../chess/tree';
 import type { MoveQuality } from '../chess/moveQuality';
@@ -19,7 +19,7 @@ const PAD_X = 36;
 const PAD_Y = 44;
 const NODE_W = 50;
 const NODE_H = 24;
-const MIN_ZOOM = 0.015;
+const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 2.5;
 
 const nodeX = (ply: number) => PAD_X + ply * COL;
@@ -36,10 +36,9 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
 
   const activePath = useMemo(() => new Set(pathTo(tree, currentId)), [tree, currentId]);
+  const compact = useMemo(() => compactTreeLanes(tree, layout), [tree, layout]);
   const nodes = Object.values(tree.nodes);
-  const lanesCount = layout.lines.length;
-  const contentW = nodeX(layout.maxPly) + NODE_W + PAD_X;
-  const contentH = nodeY(lanesCount - 1) + NODE_H + PAD_Y;
+  const contentH = nodeY(compact.maxLane) + NODE_H + PAD_Y;
 
   useEffect(() => {
     const el = viewport.current;
@@ -54,7 +53,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
   // Keep the current node in view: pan only when it drifts outside a margin.
   const current = tree.nodes[currentId];
   const cx = nodeX(current.ply);
-  const cy = nodeY(layout.lanes[currentId] ?? 0);
+  const cy = nodeY(compact.lanes[currentId] ?? 0);
   // Adjusted during render (not in an effect) whenever the target or viewport changes.
   const followKey = `${cx}:${cy}:${size.w}:${size.h}`;
   const [followed, setFollowed] = useState('');
@@ -102,9 +101,10 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
     }
   };
 
-  const fit = () => {
-    const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(size.w / contentW, size.h / contentH)));
-    setView({ k, x: (size.w - contentW * k) / 2, y: Math.max(0, (size.h - contentH * k) / 2) });
+  const focus = () => {
+    // Keep about ten plies legible instead of shrinking 136 moves to a strip.
+    const k = Math.min(1, Math.max(0.65, size.w / (10 * COL)));
+    setView({ k, x: size.w / 2 - (cx + 2 * COL) * k, y: Math.max(16, (size.h - contentH * k) / 2) });
   };
   const center = () => setView((v) => ({ ...v, x: size.w / 2 - cx * v.k, y: size.h / 2 - cy * v.k }));
 
@@ -157,9 +157,9 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
             {nodes.map((node) => {
               if (!node.parentId) return null;
               const parent = tree.nodes[node.parentId];
-              const lane = layout.lanes[node.id];
+              const lane = compact.lanes[node.id];
               const x1 = nodeX(parent.ply) + (parent.parentId ? NODE_W / 2 : 8);
-              const y1 = nodeY(layout.lanes[parent.id]);
+              const y1 = nodeY(compact.lanes[parent.id]);
               const x2 = nodeX(node.ply) - NODE_W / 2;
               const y2 = nodeY(lane);
               const mid = (x1 + x2) / 2;
@@ -178,9 +178,9 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
               const start = tree.nodes[line.startId];
               return (
                 <text
-                  key={`l-${line.lane}`}
+                  key={`l-${line.startId}`}
                   x={nodeX(start.ply) - NODE_W / 2 + 2}
-                  y={nodeY(line.lane) - NODE_H / 2 - 5}
+                  y={nodeY(compact.lanes[line.startId]) - NODE_H / 2 - 5}
                   className="tree-line-label"
                   fill={line.color}
                 >
@@ -199,7 +199,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
 
             {nodes.map((node) => {
               if (!node.parentId) return null;
-              const lane = layout.lanes[node.id];
+              const lane = compact.lanes[node.id];
               const x = nodeX(node.ply);
               const y = nodeY(lane);
               const isCurrent = node.id === currentId;
@@ -230,7 +230,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
         <button type="button" onClick={() => zoomAt(1.25, size.w / 2, size.h / 2)} title="Zoom in">+</button>
         <button type="button" onClick={() => zoomAt(0.8, size.w / 2, size.h / 2)} title="Zoom out">−</button>
         <button type="button" onClick={() => setView({ k: 1, x: size.w / 2 - cx, y: size.h / 2 - cy })} title="Readable scale, center current move">1:1</button>
-        <button type="button" onClick={fit} title="Overview of whole tree; zoom in to read moves">Map</button>
+        <button type="button" onClick={focus} title="Show nearby moves and branches at a readable scale">Focus</button>
         <button type="button" onClick={center} title="Center on current move">◎</button>
       </div>
     </div>
