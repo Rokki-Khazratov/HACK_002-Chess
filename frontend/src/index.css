@@ -1,0 +1,71 @@
+/* Token names follow docs/design/UI_UX_SYSTEM.md §21–25. The docs leave the palette
+   TBD, so values below are a provisional dark analysis palette. */
+:root {
+  --color-bg-primary: #1f1e1c;
+  --color-bg-secondary: #262522;
+  --color-bg-elevated: #302e2b;
+  --color-surface-hover: #3a3834;
+  --color-surface-selected: #4a4640;
+  --color-text-primary: #ecebe8;
+  --color-text-secondary: #b3b0aa;
+  --color-text-tertiary: #87847e;
+  --color-border-subtle: #34322e;
+  --color-border-default: #45423d;
+  --color-accent-primary: #81b64c;
+  --color-accent-muted: #3d4a2c;
+  --color-status-danger: #e0625a;
+
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+  --board-lastMove: rgba(255, 234, 88, 0.45);
+  --board-selected: rgba(20, 85, 30, 0.5);
+  --board-legalMove: rgba(20, 30, 20, 0.28);
+  --board-check: radial-gradient(circle, rgba(230, 40, 30, 0.85) 0%, rgba(230, 40, 30, 0) 75%);
+  --board-engineArrow: rgba(80, 150, 230, 0.8);
+  --engine-whiteAdvantage: #f2f2f0;
+  --engine-blackAdvantage: #403d39;
+
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --motion-fast: 140ms;
+
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
