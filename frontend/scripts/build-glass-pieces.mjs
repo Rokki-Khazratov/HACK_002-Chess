@@ -40,10 +40,11 @@ function glassify(svg, white) {
     .replaceAll('fill="#ececec"', 'fill="#ffffff" fill-opacity="0.45"')
     .replaceAll('stroke="#000"', `stroke="${edge}"`)
     .replaceAll('fill="#000"', `fill="${edge}"`);
-  // Groups without an explicit fill default to black; give them the glass fill.
-  out = out.replace(/<g(?![^>]*\bfill=)/, '<g fill="url(#fill)"');
-  // Wrap the drawing in the glass filter and add the gradient/filter defs.
-  out = out.replace(/(<svg[^>]*>)/, `$1${defs(white)}<g filter="url(#glass)">`).replace(/<\/svg>\s*$/, '</g></svg>');
+  // Wrap the drawing in the glass filter and add the gradient/filter defs. In
+  // black pieces anything without its own fill (a bare pawn path, the queen's
+  // crown balls) defaults to black, so the wrapper hands it the glass fill.
+  const wrapper = white ? '<g filter="url(#glass)">' : '<g filter="url(#glass)" fill="url(#fill)">';
+  out = out.replace(/(<svg[^>]*>)/, `$1${defs(white)}${wrapper}`).replace(/<\/svg>\s*$/, '</g></svg>');
   return out;
 }
 
