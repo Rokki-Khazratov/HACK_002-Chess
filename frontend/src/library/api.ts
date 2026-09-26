@@ -45,7 +45,7 @@ export interface TournamentDetail extends Tournament {
   black_wins: number;
   draws: number;
 }
-export interface PlayerDetail { fide_id: number; name: string; federation: string | null; federation_basis: string | null; flag: string | null; games: number }
+export interface PlayerDetail { fide_id: number; name: string; federation: string | null; federation_basis: string | null; flag: string | null; games: number; official_rating?: number | null; rating_month?: string | null }
 export interface Overview { games: number; tournaments: number; players: number; years: { year: number; games: number }[] }
 
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -55,4 +55,4 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   return body;
 }
 
-export const formatNumber = (value: number | undefined | null) => new Intl.NumberFormat('ru-RU').format(value ?? 0);
+export const formatNumber = (value: number | undefined | null) => new Intl.NumberFormat('en-US').format(value ?? 0);

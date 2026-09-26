@@ -1,12 +1,12 @@
 import { Chess } from 'chess.js';
 
-export const ENGINE_NAME = 'Stockfish 19 lite';
-export const ENGINE_DETAILS = "Stockfish 19 lite · WASM in the browser · 1 thread · scores from White's point of view";
+export const ENGINE_NAME = 'Stockfish 19';
+export const ENGINE_DETAILS = "Stockfish 19 full NNUE · WASM in the browser · 1 thread · scores from White's point of view";
 // Served from public/ so Vite does not rename it: the loader finds its .wasm by
 // swapping the script's .js extension. A wrong MIME type or a 404 for the .wasm
 // fails silently inside the worker, hence the load timeout below.
-const ENGINE_URL = `${import.meta.env.BASE_URL}stockfish/stockfish-19-lite-single.js`;
-const LOAD_TIMEOUT_MS = 15_000;
+const ENGINE_URL = `${import.meta.env.BASE_URL}stockfish/stockfish-19-single.js`;
+const LOAD_TIMEOUT_MS = 90_000;
 
 /** Evaluation from White's point of view. */
 export type Score = { kind: 'cp'; value: number } | { kind: 'mate'; value: number };

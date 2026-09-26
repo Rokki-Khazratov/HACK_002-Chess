@@ -1,8 +1,8 @@
-// Copies the single-threaded lite Stockfish WASM build into public/ so the browser
+// Copies the single-threaded full NNUE Stockfish WASM build into public/ so the browser
 // can load it as a Web Worker without SharedArrayBuffer / COOP+COEP headers.
 import { copyFileSync, mkdirSync } from 'node:fs';
 
-const FILES = ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm', 'Copying.txt'];
+const FILES = ['stockfish-19-single.js', 'stockfish-19-single.wasm', 'Copying.txt'];
 const pkg = new URL('../node_modules/stockfish/', import.meta.url);
 const dest = new URL('../public/stockfish/', import.meta.url);
 

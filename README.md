@@ -2,13 +2,21 @@
 
 This repository is the HACK_002 Vienna hackathon workspace for a focused ChessScope demonstration. The idea is **not** a lightweight helper for Chess.com or Lichess accounts: it is a first, honest slice of an AI-native research and analysis workspace for FIDE-rated over-the-board players and coaches.
 
-The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch now combines the tested [database ingestion phase](docs/09-database-parsing.md), the [local game and tournament library](docs/10-game-library.md), and the interactive analysis board merged from `board`. Deployment, payment integration, and the evidence-backed coach remain unimplemented.
+The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch combines the tested [database ingestion phase](docs/09-database-parsing.md), the [local game and tournament library](docs/10-game-library.md), and the interactive analysis board merged from `board`. Deployment, payment integration, and the evidence-backed coach remain unimplemented.
+
+## Current local UI
+
+The local app has Games, Tournaments, Rankings, and Board views. Game pages use a three-column workspace with coach chat on the left, the board in the middle, and moves on the right. The `Mock data` button loads a 136-move Carlsen–Nepomniachtchi study with 56 variations, sourced from [this Lichess study](https://lichess.org/study/RoBvWqfx/0IsLRqJa); its comments were omitted. Browser analysis uses the full NNUE Stockfish 19 build, with a target depth of 30.
+
+Rankings are an **official FIDE September 2026 monthly snapshot**, with January-to-September changes and a three-point rating trend. The main table is not live. The Rankings page embeds [2700chess's published live Top 10 banner](https://www.2700chess.com/records) and links to its full live table. Portraits are generated locally from public FIDE profile pages for the top 300. FIDE has photos for 261 of them; the other 39 show an initial avatar. These generated portraits are kept out of Git until redistribution rights are confirmed.
+
+With the local `data/corpus.sqlite`, `data/library.sqlite`, and FIDE rating archives already present, install `requirements-ingestion.txt`, then rebuild the ranking data and photo thumbnails with `.venv/bin/python scripts/build_ratings.py --photos`. Run `cd frontend && npm ci && npm run build`, then `.venv/bin/python -m library serve --corpus data/corpus.sqlite --library data/library.sqlite --port 8765` from the repository root.
 
 ## The problem in one minute
 
 A ~2500 FIDE player learns the next opponent after a round at a Swiss tournament. They have little time to identify the right player, inspect recent over-the-board games and opening choices, prepare a concrete line, and understand *why* it works. Existing tools split player records, game databases, engines, move trees, and explanations across several workflows.
 
-ChessScope should connect those pieces. A user opens an opponent by **FIDE ID**, sees the actual games and coverage behind the report, explores a position on the board, and asks a coach in the right-hand chat: “How did this player respond here as Black?” or “What happens if I trade the knights?” The answer is attached to the selected node and may preview a line; it must not silently overwrite the user's saved analysis.
+ChessScope should connect those pieces. A user opens an opponent by **FIDE ID**, sees the actual games and coverage behind the report, explores a position on the board, and asks a coach in the left-hand chat: “How did this player respond here as Black?” or “What happens if I trade the knights?” The answer is attached to the selected node and may preview a line; it must not silently overwrite the user's saved analysis.
 
 ## What the hackathon should prove
 

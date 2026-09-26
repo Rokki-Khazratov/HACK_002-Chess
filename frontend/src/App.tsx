@@ -9,6 +9,7 @@ import { EnginePanel } from './components/EnginePanel';
 import { EvalBar } from './components/EvalBar';
 import { LineChooser } from './components/LineChooser';
 import { MoveList } from './components/MoveList';
+import { PlayerAvatar } from './components/PlayerAvatar';
 import { ShortcutHelp } from './components/ShortcutHelp';
 import { TreeView } from './components/TreeView';
 import { layoutTree } from './chess/layout';
@@ -32,8 +33,29 @@ import {
 import { type EngineState, StockfishEngine } from './engine/stockfish';
 import type { GameDetail } from './library/api';
 
-const ENGINE_OPTIONS = { multiPv: 3, maxDepth: 22 };
+const ENGINE_OPTIONS = { multiPv: 3, maxDepth: 30 };
+const MOCK_GAME = {
+  white_id: 1503014, black_id: 4168119, white_name: 'Carlsen, Magnus', black_name: 'Nepomniachtchi, Ian',
+  white_rating: 2855, black_rating: 2782, white_fed: 'NOR', black_fed: 'RUS', white_flag: '🇳🇴', black_flag: '🏳️',
+  result: '1-0', played_on: '2021-12-03',
+} as GameDetail;
 type PanelTab = 'moves' | 'tree';
+
+function PlayerStrip({ game, color }: { game?: GameDetail; color: 'white' | 'black' }) {
+  const id = color === 'white' ? game?.white_id : game?.black_id;
+  const name = color === 'white' ? game?.white_name : game?.black_name;
+  const federation = color === 'white' ? game?.white_fed : game?.black_fed;
+  const flag = color === 'white' ? game?.white_flag : game?.black_flag;
+  const rating = color === 'white' ? game?.white_rating : game?.black_rating;
+  return <div className="player">
+    <PlayerAvatar id={id} name={name} className={`player-avatar-${color}`} />
+    <div className="player-identity">
+      {id ? <a className="board-player-link" href={`/players/${id}`}>{name || (color === 'white' ? 'White' : 'Black')}</a>
+        : <span>{name || (color === 'white' ? 'White' : 'Black')}</span>}
+      {game && <span className="player-details"><span aria-label={federation || 'Unknown federation'}>{federation === 'RUS' ? '🏳️' : flag || '◇'} {federation || 'Unknown federation'}</span><span>{rating ? `${rating} Elo` : 'Unrated'}</span></span>}
+    </div>
+  </div>;
+}
 
 function storedTab(): PanelTab {
   try {
@@ -43,7 +65,7 @@ function storedTab(): PanelTab {
   }
 }
 
-export default function App({ initialTree, game }: { initialTree?: MoveTree; game?: GameDetail }) {
+export default function App({ initialTree, game, onMockChange }: { initialTree?: MoveTree; game?: GameDetail; onMockChange?: (loaded: boolean) => void }) {
   const [tree, setTree] = useState<MoveTree>(() => initialTree ?? createTree());
   const [currentId, setCurrentId] = useState(tree.rootId);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
@@ -56,6 +78,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
   const [chooser, setChooser] = useState<{ forkId: string; index: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [mockLoaded, setMockLoaded] = useState(false);
 
   const current = tree.nodes[currentId];
   const layout = useMemo(() => layoutTree(tree), [tree]);
@@ -227,6 +250,8 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
     const fresh = createTree();
     setTree(fresh);
     select(fresh.rootId);
+    setMockLoaded(false);
+    onMockChange?.(false);
   };
 
   /** Dev helper: replace the analysis with the mock game and jump to its last move. */
@@ -238,6 +263,8 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
     }
     setTree(result.tree);
     select(lineEnd(result.tree, result.tree.rootId));
+    setMockLoaded(true);
+    onMockChange?.(true);
     setToast('Mock game loaded');
   };
 
@@ -251,6 +278,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
 
   const topColor = orientation === 'white' ? 'black' : 'white';
   const bottomColor = orientation;
+  const activeGame = game ?? (mockLoaded ? MOCK_GAME : undefined);
   const sideLines = layout.lines.length - 1;
   const openMenu = (nodeId: string, x: number, y: number) => setMenu({ nodeId, x, y });
 
@@ -265,13 +293,7 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
       <ChatPanel fen={current.fen} />
       <main className="board-column">
         <div className="board-frame">
-          <div className="player">
-            <span className={`player-avatar player-avatar-${topColor}`} />
-            {game && (topColor === 'white' ? game.white_id : game.black_id)
-              ? <a className="board-player-link" href={`/players/${topColor === 'white' ? game.white_id : game.black_id}`}>{topColor === 'white' ? game.white_name : game.black_name}</a>
-              : topColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
-            {game && <span className="player-rating">{topColor === 'white' ? game.white_rating : game.black_rating}</span>}
-          </div>
+          <PlayerStrip game={activeGame} color={topColor} />
           <EvalBar score={bestScore} flipped={orientation === 'black'} />
           <AnalysisBoard
             fen={current.fen}
@@ -280,18 +302,12 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
             arrows={arrows}
             onMove={play}
           />
-          <div className="player">
-            <span className={`player-avatar player-avatar-${bottomColor}`} />
-            {game && (bottomColor === 'white' ? game.white_id : game.black_id)
-              ? <a className="board-player-link" href={`/players/${bottomColor === 'white' ? game.white_id : game.black_id}`}>{bottomColor === 'white' ? game.white_name : game.black_name}</a>
-              : bottomColor === 'white' ? (game?.white_name || 'Белые') : (game?.black_name || 'Чёрные')}
-            {game && <span className="player-rating">{bottomColor === 'white' ? game.white_rating : game.black_rating}</span>}
-          </div>
+          <PlayerStrip game={activeGame} color={bottomColor} />
         </div>
       </main>
 
       <aside className="panel">
-        <h2 className="panel-title">{game ? `${game.result} · ${game.played_on || 'Дата неизвестна'}` : 'Анализ'}</h2>
+        <h2 className="panel-title">{activeGame ? `${activeGame.result} · ${activeGame.played_on || 'Date unknown'}` : 'Analysis'}</h2>
         <EnginePanel
           engine={engineCurrent || !engineEnabled ? engine : { ...engine, lines: [], depth: 0 }}
           enabled={engineEnabled}
@@ -322,11 +338,11 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
               className={`tab${tab === value ? ' tab-active' : ''}`}
               onClick={() => setTab(value)}
             >
-              {value === 'moves' ? 'Ходы' : 'Дерево'}
+              {value === 'moves' ? 'Moves' : 'Tree'}
             </button>
           ))}
           <span className="tabs-meta">{sideLines > 0 ? `${sideLines} side line${sideLines > 1 ? 's' : ''}` : ''}</span>
-          <button type="button" className="tabs-mock" onClick={loadMock} title="Загрузить пример партии с вариантами">Mock data</button>
+          <button type="button" className="tabs-mock" onClick={loadMock} title="Load a sample game with variations">Mock data</button>
           <button type="button" className="tabs-help" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)">
             ?
           </button>
@@ -363,11 +379,11 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
           </button>
         </nav>
         <div className="toolbar">
-          <button type="button" className="btn" onClick={reset}>Новая</button>
-          <button type="button" className="btn" onClick={flip} title="Перевернуть доску (F)">Повернуть</button>
-          <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Импорт PGN</button>
-          <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Копировать PGN</button>
-          <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Копировать FEN</button>
+          <button type="button" className="btn" onClick={reset}>New</button>
+          <button type="button" className="btn" onClick={flip} title="Flip board (F)">Flip</button>
+          <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
+          <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
+          <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
         </div>
       </aside>
 
@@ -424,6 +440,8 @@ export default function App({ initialTree, game }: { initialTree?: MoveTree; gam
             setTree(imported);
             select(imported.rootId);
             setPgnOpen(false);
+            setMockLoaded(false);
+            onMockChange?.(false);
           }}
         />
       )}
