@@ -67,6 +67,7 @@ export interface PieceSet {
 }
 
 export const PIECE_SETS: PieceSet[] = [
+  { id: 'glass', name: 'Стекло', dir: 'glass' },
   { id: 'default', name: 'Стандарт' },
   { id: 'cburnett', name: 'Классика', dir: 'cburnett' },
   { id: 'merida', name: 'Мерида', dir: 'merida' },
@@ -105,7 +106,7 @@ export const ANIMATION_MS: Record<BoardSettings['animation'], number> = {
 };
 
 export const DEFAULT_SETTINGS: BoardSettings = {
-  pieceSet: 'default',
+  pieceSet: 'glass',
   boardTheme: 'brown',
   customLight: '#f0d9b5',
   customDark: '#b58863',
@@ -119,11 +120,18 @@ export const DEFAULT_SETTINGS: BoardSettings = {
 };
 
 const KEY = 'chessscope.board';
+/** Bump when a new default should reach people who already saved settings. */
+const VERSION = 2;
 
 function load(): BoardSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<BoardSettings>) };
+    if (raw) {
+      const { v, ...saved } = JSON.parse(raw) as Partial<BoardSettings> & { v?: number };
+      // v2 made glass the default piece set: earlier saves pick it up once.
+      if ((v ?? 1) < 2) delete saved.pieceSet;
+      return { ...DEFAULT_SETTINGS, ...saved };
+    }
   } catch {
     // Storage unavailable or corrupted: defaults.
   }
@@ -136,7 +144,7 @@ const listeners = new Set<() => void>();
 export function updateBoardSettings(patch: Partial<BoardSettings>) {
   current = { ...current, ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify(current));
+    localStorage.setItem(KEY, JSON.stringify({ ...current, v: VERSION }));
   } catch {
     // Not persisted in private mode; still applies for this visit.
   }
