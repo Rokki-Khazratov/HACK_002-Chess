@@ -64,12 +64,13 @@
   overflow: hidden;
 }
 
-/* ---------- Tree graph ---------- */
+/* ---------- Tree graph: git-style lines and commit dots ---------- */
 .tree-view {
+  --tree-bg: #181713;
   position: relative;
   flex: 1;
   min-height: 0;
-  background: radial-gradient(ellipse at 30% 20%, #25232a 0%, var(--color-bg-primary) 70%);
+  background: radial-gradient(ellipse 90% 80% at 50% 40%, #1f1d19 0%, #151411 100%);
 }
 
 .tree-viewport {
@@ -84,84 +85,83 @@
   cursor: grabbing;
 }
 
-.tree-dot {
-  fill: rgba(255, 255, 255, 0.06);
-}
-
 .tree-tick {
-  fill: var(--color-text-tertiary);
+  fill: #6f6a60;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
 .tree-edge {
   fill: none;
-  stroke-width: 1.5;
-  opacity: 0.35;
-  transition: opacity 200ms ease-out, stroke-width 200ms ease-out;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.45;
+  transition: opacity 200ms ease-out;
 }
 
 .tree-edge-active {
-  stroke-width: 2.5;
-  opacity: 0.95;
+  opacity: 1;
 }
 
 .tree-line-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
-}
-
-.tree-root {
-  fill: var(--color-text-tertiary);
-  cursor: pointer;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .tree-node {
   cursor: pointer;
 }
 
-.tree-node rect {
-  fill: #2b2930;
-  stroke: var(--line-color);
-  stroke-width: 1;
-  stroke-opacity: 0.45;
-  transition: fill 160ms ease-out, stroke-opacity 160ms ease-out;
+.tree-hit {
+  fill: transparent;
 }
 
-.tree-node text {
-  fill: var(--color-text-secondary);
-  font-size: 12px;
-  pointer-events: none;
-}
-
-.tree-node:hover rect {
-  fill: #3a3842;
-  stroke-opacity: 1;
-}
-
-.tree-node-active rect {
-  stroke-opacity: 1;
-  stroke-width: 1.5;
-}
-
-.tree-node-active text {
-  fill: var(--color-text-primary);
-}
-
-.tree-node-current rect {
+.tree-dot {
   fill: var(--line-color);
-  stroke: #fff;
-  stroke-opacity: 0.9;
+  stroke: var(--tree-bg);
+  stroke-width: 2;
+  opacity: 0.6;
+  transition: opacity 160ms ease-out;
 }
 
-.tree-node-current text {
-  fill: #151418;
+.tree-node-active .tree-dot,
+.tree-node:hover .tree-dot {
+  opacity: 1;
+}
+
+/* A fork is an open ring, like a merge point in a git graph. */
+.tree-node-fork .tree-dot {
+  fill: var(--tree-bg);
+  stroke: var(--line-color);
+  stroke-width: 2;
+}
+
+.tree-node-current .tree-dot {
+  fill: var(--tree-bg);
+  stroke: #f2efe8;
+  stroke-width: 2.5;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.35));
+}
+
+.tree-san {
+  fill: #8f887a;
+  font-size: 11px;
+  pointer-events: none;
+  transition: fill 160ms ease-out;
+}
+
+.tree-node-active .tree-san,
+.tree-node:hover .tree-san {
+  fill: #e9e4d8;
+}
+
+.tree-node-current .tree-san {
+  fill: #fff;
   font-weight: 700;
-}
-
-circle.tree-node-current {
-  fill: var(--color-accent-primary);
 }
 
 .tree-controls {

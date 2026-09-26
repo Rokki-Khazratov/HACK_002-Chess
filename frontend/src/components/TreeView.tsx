@@ -1,7 +1,7 @@
 import { type PointerEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { type TreeLayout, lineColor } from '../chess/layout';
 import { figurine } from '../chess/notation';
-import { type MoveTree, pathTo } from '../chess/tree';
+import { type MoveTree, lineEnd, pathTo } from '../chess/tree';
 
 interface Props {
   tree: MoveTree;
@@ -11,12 +11,12 @@ interface Props {
   onContextMenu: (nodeId: string, x: number, y: number) => void;
 }
 
-const COL = 64;
-const ROW = 46;
+const COL = 60;
+const ROW = 44;
 const PAD_X = 36;
-const PAD_Y = 44;
-const NODE_W = 50;
-const NODE_H = 24;
+const PAD_Y = 50;
+/** Radius of the elbow where a side line turns onto its lane. */
+const BEND = 20;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
 
@@ -24,7 +24,19 @@ const nodeX = (ply: number) => PAD_X + ply * COL;
 const nodeY = (lane: number) => PAD_Y + lane * ROW;
 
 /**
- * Pannable, zoomable graph of the move tree: columns are plies, rows are lines.
+ * Git-graph connector: a continuation runs straight along its lane; a side line
+ * drops straight down from the fork and turns onto its lane with a rounded elbow.
+ */
+function branchPath(x1: number, y1: number, x2: number, y2: number): string {
+  if (y1 === y2) return `M ${x1} ${y1} H ${x2}`;
+  const dir = y2 > y1 ? 1 : -1;
+  const r = Math.min(BEND, Math.abs(y2 - y1), x2 - x1);
+  return `M ${x1} ${y1} V ${y2 - dir * r} Q ${x1} ${y2} ${x1 + r} ${y2} H ${x2}`;
+}
+
+/**
+ * Pannable, zoomable graph of the move tree drawn like a git graph: columns are
+ * plies, rows are lines, every move is a commit dot on its line.
  * Drag to pan, wheel to zoom around the cursor, click a node to jump there.
  */
 export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: Props) {
@@ -36,8 +48,9 @@ export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: P
   const activePath = useMemo(() => new Set(pathTo(tree, currentId)), [tree, currentId]);
   const nodes = Object.values(tree.nodes);
   const lanesCount = layout.lines.length;
-  const contentW = nodeX(layout.maxPly) + NODE_W + PAD_X;
-  const contentH = nodeY(lanesCount - 1) + NODE_H + PAD_Y;
+  // Room on the right for the branch name at the longest tip.
+  const contentW = nodeX(layout.maxPly) + PAD_X + 60;
+  const contentH = nodeY(lanesCount - 1) + PAD_Y;
 
   useEffect(() => {
     const el = viewport.current;
@@ -131,92 +144,68 @@ export function TreeView({ tree, layout, currentId, onSelect, onContextMenu }: P
         }}
       >
         <svg width="100%" height="100%" role="tree" aria-label="Move tree graph">
-          <defs>
-            <pattern id="tree-dots" width="16" height="16" patternUnits="userSpaceOnUse"
-              patternTransform={`translate(${view.x % (16 * view.k)} ${view.y % (16 * view.k)}) scale(${view.k})`}>
-              <circle cx="1" cy="1" r="0.9" className="tree-dot" />
-            </pattern>
-            <filter id="tree-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#tree-dots)" />
           <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
             {ticks.map((ply) => (
-              <text key={ply} x={nodeX(ply)} y={16} className="tree-tick" textAnchor="middle">
+              <text key={ply} x={nodeX(ply)} y={18} className="tree-tick" textAnchor="middle">
                 {moveNo(ply)}
               </text>
             ))}
 
-            {nodes.map((node) => {
-              if (!node.parentId) return null;
-              const parent = tree.nodes[node.parentId];
-              const lane = layout.lanes[node.id];
-              const x1 = nodeX(parent.ply) + (parent.parentId ? NODE_W / 2 : 8);
-              const y1 = nodeY(layout.lanes[parent.id]);
-              const x2 = nodeX(node.ply) - NODE_W / 2;
-              const y2 = nodeY(lane);
-              const mid = (x1 + x2) / 2;
-              const active = activePath.has(node.id);
-              return (
-                <path
-                  key={`e-${node.id}`}
-                  d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
-                  className={`tree-edge${active ? ' tree-edge-active' : ''}`}
-                  stroke={lineColor(layout, node.id)}
-                />
-              );
-            })}
+            {/* Inactive lines first so the path to the current move draws on top. */}
+            {[false, true].map((onPath) =>
+              nodes.map((node) => {
+                if (!node.parentId || activePath.has(node.id) !== onPath) return null;
+                const parent = tree.nodes[node.parentId];
+                return (
+                  <path
+                    key={`e-${node.id}`}
+                    d={branchPath(nodeX(parent.ply), nodeY(layout.lanes[parent.id]), nodeX(node.ply), nodeY(layout.lanes[node.id]))}
+                    className={`tree-edge${onPath ? ' tree-edge-active' : ''}`}
+                    style={{ stroke: lineColor(layout, node.id) }}
+                  />
+                );
+              }),
+            )}
 
+            {/* Branch name at the tip of each side line, like a git ref. */}
             {layout.lines.slice(1).map((line) => {
-              const start = tree.nodes[line.startId];
+              const tip = tree.nodes[lineEnd(tree, line.startId)];
               return (
                 <text
                   key={`l-${line.lane}`}
-                  x={nodeX(start.ply) - NODE_W / 2 + 2}
-                  y={nodeY(line.lane) - NODE_H / 2 - 5}
+                  x={nodeX(tip.ply) + 12}
+                  y={nodeY(line.lane) + 3.5}
                   className="tree-line-label"
-                  fill={line.color}
+                  style={{ fill: line.color }}
                 >
                   {line.label}
                 </text>
               );
             })}
 
-            <circle
-              data-node={tree.rootId}
-              cx={nodeX(0)}
-              cy={nodeY(0)}
-              r={7}
-              className={`tree-root${currentId === tree.rootId ? ' tree-node-current' : ''}`}
-            />
-
             {nodes.map((node) => {
-              if (!node.parentId) return null;
-              const lane = layout.lanes[node.id];
               const x = nodeX(node.ply);
-              const y = nodeY(lane);
+              const y = nodeY(layout.lanes[node.id]);
               const isCurrent = node.id === currentId;
+              const isFork = node.children.length > 1;
               const active = activePath.has(node.id);
-              const [piece, rest] = figurine(node.san!);
+              const [piece, rest] = node.san ? figurine(node.san) : ['', ''];
               return (
                 <g
                   key={node.id}
                   data-node={node.id}
-                  className={`tree-node${active ? ' tree-node-active' : ''}${isCurrent ? ' tree-node-current' : ''}`}
+                  className={`tree-node${active ? ' tree-node-active' : ''}${isCurrent ? ' tree-node-current' : ''}${isFork ? ' tree-node-fork' : ''}`}
                   style={{ ['--line-color' as string]: lineColor(layout, node.id) }}
-                  filter={isCurrent ? 'url(#tree-glow)' : undefined}
                 >
-                  <title>{`${node.san}${node.name ? ` — ${node.name}` : ''}`}</title>
-                  <rect x={x - NODE_W / 2} y={y - NODE_H / 2} width={NODE_W} height={NODE_H} rx={NODE_H / 2} />
-                  <text x={x} y={y + 4} textAnchor="middle">
-                    {piece}
-                    {rest}
-                  </text>
+                  <title>{node.san ? `${node.san}${node.name ? ` — ${node.name}` : ''}` : 'Start'}</title>
+                  <circle cx={x} cy={y} r={16} className="tree-hit" />
+                  <circle cx={x} cy={y} r={isCurrent ? 7.5 : isFork ? 5.5 : 4.5} className="tree-dot" />
+                  {node.san && (
+                    <text x={x} y={y - 12} textAnchor="middle" className="tree-san">
+                      {piece}
+                      {rest}
+                    </text>
+                  )}
                 </g>
               );
             })}
