@@ -166,6 +166,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const [settingsOpen, setSettingsOpen] = useState(false);
   const boardSettings = useBoardSettings();
   const [mockLoaded, setMockLoaded] = useState(presentationDemo());
+  const [demoRevision, setDemoRevision] = useState(0);
   const variant = UI_VARIANTS[0];
   const [workspace, setWorkspace] = useState(() => presentationDemo() ? { middle: 390, coach: 480, moves: 34, chatOpen: true } : storedWorkspace());
   const [moveIcons, setMoveIcons] = useState(storedMoveIcons);
@@ -188,20 +189,20 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   useEffect(() => {
     if (conversationId !== DEMO_ID) return;
     const controller = new AbortController();
-    import('./ai/api').then(({ loadHistory }) => loadHistory(DEMO_ID, controller.signal)).then(({ turns }) => {
-      if (controller.signal.aborted || turns.length) return;
+    import('./ai/api').then(({ loadHistory }) => loadHistory(DEMO_ID, controller.signal)).then(() => {
+      if (controller.signal.aborted) return;
       const position = boardContext(tree, currentId, 'demo', undefined, preparation, undefined);
       void seedDemoConversation(DEMO_ID, {
         id: 'demo-chessscope-turn', conversationId: DEMO_ID, action: 'ask', blueprintVersion: 'demo',
         message: 'What should I notice in this position, and how can I prepare a practical continuation?',
         reply: '', model: 'ChessScope demo', createdAt: new Date().toISOString(), demo: true,
-        analysis: { summary: 'White has converted central space into a lasting initiative. The position is from the Carlsen–Nepomniachtchi 2021 World Championship game 6; the tree keeps the played game beside named analytical branches.', sections: [
-          { kind: 'white_plan', title: 'Position plan', items: ['Keep the central bind and improve the least active piece before opening the position.', 'Compare the game continuation with the side branches in the tree; each branch starts from a shared decision point.'] },
-          { kind: 'risks', title: 'What to verify', items: ['The coach response is illustrative demo copy. Run Stockfish at the selected position for current engine lines.', 'Use the source game and move history as historical evidence; engine evaluation and coach interpretation are separate.'] },
-          { kind: 'next_steps', title: 'Continue the study', items: ['Select a branch node to inspect its exact position.', 'Run the engine, ask a position specific question, then name and save the variation you want to keep.'] },
+        analysis: { summary: 'This Carlsen–Nepomniachtchi World Championship position connects the played game to 56 study branches. The board, move tree, engine and coach each show a different part of the analysis.', sections: [
+          { kind: 'white_plan', title: 'Study the position', items: ['Compare the game continuation with the named alternatives in the tree.', 'Select a branch to update the board and inspect its exact position.'] },
+          { kind: 'risks', title: 'Keep the evidence clear', items: ['This coach copy is illustrative; the live Stockfish panel shows its own position bound lines.', 'Historical moves, engine evaluation and coach interpretation are separate sources.'] },
+          { kind: 'next_steps', title: 'Make it yours', items: ['Ask a position specific question, then add and name a line you want to keep.'] },
         ], lineExplanations: {} }, engineLines: [], positionFacts: null,
         context: position,
-      });
+      }).then(() => { if (!controller.signal.aborted) setDemoRevision((value) => value + 1); });
     }).catch(() => {});
     return () => controller.abort();
   }, [conversationId]);
@@ -521,25 +522,6 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
     onMockChange?.(false);
   };
 
-  /** Dev helper: load every variation and start at the first branch. */
-  const loadMock = () => {
-    if (!confirmDiscardAnalysis()) return;
-    const result = importPgn(MOCK_PGN);
-    if ('error' in result) {
-      setToast(`Mock PGN failed: ${result.error}`);
-      return;
-    }
-    clearAnalysisChanges();
-    setCoachBoard({ id: 'demo:carlsen-nepomniachtchi', source: 'demo' });
-    setConversationId(`demo:${crypto.randomUUID()}`);
-    setTree(result.tree);
-    select(nextFork(result.tree, result.tree.rootId) ?? result.tree.rootId);
-    setTab('tree');
-    setMockLoaded(true);
-    onMockChange?.(true);
-    setToast('Mock game loaded');
-  };
-
   const loadPresentationDemo = () => {
     const result = importPgn(MOCK_PGN);
     if ('error' in result) { setToast(`Demo PGN failed: ${result.error}`); return; }
@@ -697,7 +679,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
         </div></div>),
-    chat: workspace.chatOpen ? <ChatPanel conversationId={conversationId}
+    chat: workspace.chatOpen ? <ChatPanel key={`${conversationId}:${demoRevision}`} conversationId={conversationId}
+      preserveAnswerTop={conversationId === DEMO_ID}
       context={boardContext(tree, currentId, coachBoard.source, game?.id, preparation, engineEnabled ? engine : undefined)}
       prepareContext={prepareCoachContext}
       onPreviewLine={previewCoachLine}

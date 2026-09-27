@@ -125,7 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ai/demo-seed":
                 conversation_id = identifier(payload.get("conversationId"))
                 turn = payload.get("turn")
-                if not isinstance(turn, dict) or turn.get("conversationId") != conversation_id:
+                if conversation_id != "demo:chessscope-showcase" or not isinstance(turn, dict) or turn.get("conversationId") != conversation_id or turn.get("demo") is not True:
                     raise CoachError("Invalid demo conversation")
                 self.coach.store.seed_demo(conversation_id, turn)
                 self.json_response({"saved": True})

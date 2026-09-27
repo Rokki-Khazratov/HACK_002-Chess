@@ -28,6 +28,7 @@ interface Props {
   onDetachPreparation?: () => void;
   onApplyLine?: ApplyCoachLine;
   onPreviewLine?: (turn: CoachTurn, line: CoachEngineLine, ply: number | null) => void;
+  preserveAnswerTop?: boolean;
 }
 
 function rememberPending(id: string, request?: CoachRequest) {
@@ -43,7 +44,7 @@ export function ChatPanel(props: Props) {
   return <Conversation key={props.conversationId} {...props} />;
 }
 
-function Conversation({ conversationId, context, prepareContext, onClose, onDetachPreparation, onApplyLine, onPreviewLine, onConversationCreated }: Props) {
+function Conversation({ conversationId, context, prepareContext, onClose, onDetachPreparation, onApplyLine, onPreviewLine, onConversationCreated, preserveAnswerTop }: Props) {
   const [fontSize, setFontSize] = useState(() => {
     try { return Math.min(24, Math.max(16, Number(localStorage.getItem('chessscope.coach.fontSize')) || 18)); }
     catch { return 18; }
@@ -91,7 +92,7 @@ function Conversation({ conversationId, context, prepareContext, onClose, onDeta
       });
     return () => { alive.current = false; controller.abort(); };
   }, [conversationId, loadVersion]);
-  useEffect(() => { const body = bottom.current?.parentElement; if (body && (turns.length || sending)) body.scrollTop = body.scrollHeight; }, [turns.length, sending]);
+  useEffect(() => { const body = bottom.current?.parentElement; if (body && (turns.length || sending)) body.scrollTop = preserveAnswerTop ? 0 : body.scrollHeight; }, [turns.length, sending, preserveAnswerTop]);
 
   const prep = context.preparation;
   const suggestedQuestions = context.board ? quickQuestions : preparationQuestions;

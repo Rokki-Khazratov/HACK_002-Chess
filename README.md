@@ -1,60 +1,139 @@
-# HACK_002 Chess — ChessScope professional-coach prototype
+# ChessScope
 
-This repository is the HACK_002 Vienna hackathon workspace for a focused ChessScope demonstration. The idea is **not** a lightweight helper for Chess.com or Lichess accounts: it is a first, honest slice of an AI-native research and analysis workspace for FIDE-rated over-the-board players and coaches.
+### Prepare for an opponent. Study the evidence. Keep the line.
 
-The long-term product is a modern, ChessBase-class platform. The hackathon goal is much narrower: demonstrate the loop from a real FIDE player and attributable games to a chessboard, a historical position query, a bounded engine line, and a board-aware coaching conversation. The `parsing-DB` branch combines the tested [database ingestion phase](docs/09-database-parsing.md), the [local game and tournament library](docs/10-game-library.md), and the interactive analysis board merged from `board`. Deployment, payment integration, and the evidence-backed coach remain unimplemented.
+**HACK_002 Vienna · Chess research and analysis prototype**
 
-## Current local UI
+ChessScope connects a FIDE player identity, indexed games, an analysis board, browser-based Stockfish and a position-aware coach. The player can trace a claim back to a game, inspect an engine line and save a chosen variation.
 
-`main` integrates the board, data library, board appearance/annotation work and all five UI variants. **Workspace** is the default resizable layout; use **Layout** to choose Classic, Obsidian, Paper, Timeline or Pro. Board settings, arrow/square annotations, both tree styles and move-quality estimates work across these layouts. See the [branch integration map](docs/11-branch-integration.md) for feature provenance and validation.
+![ChessScope board with imported variations, Stockfish analysis and coach conversation](./assets/chessscope-workspace.png)
 
-The local Prepare screen and a basic Cerebras chat are also included. Configure `CEREBRAS_API_KEY` in the environment or ignored `.env.local`; `CEREBRAS_MODEL` optionally selects the model. This chat receives the current position but does not yet provide evidence-backed engine/database coaching.
+*Full analysis workspace. The visible coach answer is labeled illustrative demo copy; the board, imported PGN tree and engine are real application features.*
 
-The local app has Games, Tournaments, Rankings, and Board views. Game pages use a three-column workspace with coach chat on the left, the board in the middle, and moves on the right. The `Mock data` button loads a 136-move Carlsen–Nepomniachtchi study with 56 variations, sourced from [this Lichess study](https://lichess.org/study/RoBvWqfx/0IsLRqJa); its comments were omitted. Browser analysis uses the full NNUE Stockfish 19 build, with a target depth of 30.
+[Product tour](#product-tour) · [System design](#system-design) · [Run locally](#run-locally)
 
-Rankings are an **official FIDE September 2026 monthly snapshot**, with January-to-September changes and a three-point rating trend. The main table is not live. The Rankings page embeds [2700chess's published live Top 10 banner](https://www.2700chess.com/records) and links to its full live table. Portraits are generated locally from public FIDE profile pages for the top 300. FIDE has photos for 261 of them; the other 39 show an initial avatar. These generated portraits are kept out of Git until redistribution rights are confirmed.
+## At a glance
 
-With the local `data/corpus.sqlite`, `data/library.sqlite`, and FIDE rating archives already present, install `requirements-ingestion.txt`, then rebuild the ranking data and photo thumbnails with `.venv/bin/python scripts/build_ratings.py --photos`. Run `cd frontend && npm ci && npm run build`, then `.venv/bin/python -m library serve --corpus data/corpus.sqlite --library data/library.sqlite --port 8765` from the repository root.
+| Observed in the local prototype | Scope |
+| --- | ---: |
+| Indexed games shown in the library | 1,232,990 |
+| Games associated with Magnus Carlsen in the inspected index | 851 |
+| Bundled showcase PGN | 575 nodes · 56 variations |
+| Browser engine | Stockfish 19 |
 
-## The problem in one minute
+The index is a sourced local sample, not a complete official game record. Game eligibility and exclusions are reported separately in preparation evidence.
 
-A ~2500 FIDE player learns the next opponent after a round at a Swiss tournament. They have little time to identify the right player, inspect recent over-the-board games and opening choices, prepare a concrete line, and understand *why* it works. Existing tools split player records, game databases, engines, move trees, and explanations across several workflows.
+## The problem
 
-ChessScope should connect those pieces. A user opens an opponent by **FIDE ID**, sees the actual games and coverage behind the report, explores a position on the board, and asks a coach in the left-hand chat: “How did this player respond here as Black?” or “What happens if I trade the knights?” The answer is attached to the selected node and may preview a line; it must not silently overwrite the user's saved analysis.
+Before a round, a player may need to identify the right opponent, find useful games, inspect a position and decide what to study. Those actions are usually split across a database, board, engine and chat. ChessScope keeps the source game and selected position in the same workflow as the explanation.
 
-## What the hackathon should prove
+![ChessScope study flow from player identity to saved branch](./assets/study-flow-preview.svg)
 
-```text
-FIDE ID → sourced player card → eligible game sample → analysis board
-        → exact-position lookup → Stockfish line → evidence-backed coach
-        → user-approved, named variation
+[Edit the study-flow diagram](./assets/study-flow.excalidraw)
+
+## Product tour
+
+### 1. Find a real game
+
+The library searches imported games by player, tournament, date and other filters. A result opens its source PGN on the board.
+
+![ChessScope game library with filters and indexed results](./assets/chessscope-games.jpg)
+
+### 2. Check the player record
+
+A player page ties the name to a FIDE ID and shows the games available in this index. The displayed count describes local coverage, not every game the player has played.
+
+![Magnus Carlsen profile with FIDE ID and local game list](./assets/chessscope-player-profile.jpg)
+
+### 3. Build an opponent brief
+
+Preparation stores the selected player, color, opening, goal and linked coach conversation. The guided demo below uses a catalog game and names the steps still to study.
+
+![Opponent preparation workspace with selected FIDE player and game plan](./assets/chessscope-preparation.jpg)
+
+### 4. Analyze the source position
+
+The game page keeps source metadata, board, moves, tree, engine and coach together. Selecting a move updates the position; Stockfish evaluates that FEN in the browser.
+
+![Source game open at a selected move with Stockfish lines and coach panel](./assets/chessscope-source-game.jpg)
+
+### 5. Explore and save alternatives
+
+The full workspace shown at the top imports a 2021 Carlsen–Nepomniachtchi study with 56 variations. The move list and graph share one legal tree. A proposed line is replayed before it can become a saved branch; the user chooses whether to apply it.
+
+### 6. Put ratings in context
+
+The Rankings view uses the September 2026 official FIDE monthly snapshot. Its change and trend columns compare stored monthly data; the separate live Top 10 feed is attributed to 2700chess.
+
+![ChessScope world rankings with player ratings and trend columns](./assets/chessscope-rankings.jpg)
+
+## System design
+
+```mermaid
+flowchart LR
+  subgraph Evidence["Source data"]
+    PGN["Provenance-preserving PGNs"]
+    FIDE["FIDE identity and ratings"]
+  end
+  subgraph Service["Local Python service"]
+    Index["Ingestion and validation"]
+    Games[("SQLite game index")]
+    API["Library and preparation API"]
+    Coach["Coach contract and evidence builder"]
+    History[("Conversation store")]
+  end
+  subgraph Browser["React workspace"]
+    UI["Library · Prepare · Board"]
+    Tree["Legal move tree"]
+    Engine["Stockfish 19 WASM"]
+    Chat["Coach chat"]
+  end
+  Model["Cerebras model"]
+
+  PGN --> Index
+  FIDE --> Index
+  Index --> Games
+  Games --> API --> UI
+  UI --> Tree
+  UI --> Engine
+  UI --> Chat
+  Chat -->|"FEN · legal line · preparation"| Coach
+  Games -->|"bounded game evidence"| Coach
+  Coach --> Model
+  Coach --> History
+  Coach -->|"structured answer + provenance"| Chat
 ```
 
-Use a small **real and permitted** game sample. Label missing games, uncertain identity matches, simulated steps, and any provider test-mode checkout. A convincing demo does not require a billion-game index or a production-quality ten-minute report. It does require a believable professional workflow and a clear distinction between historical facts, engine suggestions, and AI explanation.
+**Boundaries that matter:** the catalog supplies historical records; `chess.js` and `python-chess` check move legality; Stockfish supplies position analysis; the model explains supplied context. The server checks the move sequence and selected FEN before sending a coach request. The chat stores a context snapshot with each turn. A model response does not silently change the tree.
 
-The intended product journey is `landing → auth → payment → dashboard → web app`; pricing, payment provider, and what is truly implemented for the hackathon remain open. The target stack direction is React/TypeScript, Python/Django REST Framework, PostgreSQL, background workers, and Stockfish on a VPS—but this repository does not yet commit to implementation details.
+## Implementation
 
-## Read the context
+| Layer | In this repository |
+| --- | --- |
+| Interface | React 19, TypeScript, Vite |
+| Board and variations | `chess.js`, persistent legal move tree |
+| Engine | Stockfish 19 WebAssembly in the browser |
+| Service | Python HTTP server, `python-chess` |
+| Evidence and history | SQLite game index and separate coach store |
+| Coach | Structured context and Cerebras provider adapter |
 
-1. [Product and user](docs/01-product-context.md) — target player, value, first-release boundaries.
-2. [Hackathon demo flow](docs/02-demo-flow.md) — the small end-to-end story and honesty rules.
-3. [Workspace and coach](docs/03-workspace-and-coach.md) — board, variation tree, chat, evidence.
-4. [Technical picture](docs/04-technical-picture.md) — components and data paths, without a full TЗ.
-5. [Data and source rights](docs/05-data-and-rights.md) — FIDE, OTB games, online games, licensing.
-6. [Decisions and handoff](docs/06-decisions-and-handoff.md) — what is fixed, what is still open.
-7. [Feature horizons](docs/07-feature-horizons.md) — demo, professional release, and later platform.
-8. [References](docs/08-references.md) — pinned ChessScope source documents and external links.
-9. [Database parsing phase](docs/09-database-parsing.md) — acquisition, validation, official evidence, strict filtering and measured coverage.
-10. [Local game library](docs/10-game-library.md) — browse tournaments, players, years, federations, verification status and PGNs.
+The showcase coach answer is synthetic and marked **“DEMO · illustrative coach response”** in the app. It demonstrates layout only. A live answer requires a configured provider, and the screenshot makes no claim that its text was generated for the visible position.
 
-The detailed product, architecture, backend, database, and phased specifications live in [ChessScope at the source revision used for this summary](https://github.com/Rokki-Khazratov/ChessScope/tree/3a990511f91aad55285270953179285a61df7b69). This repo deliberately links to that context instead of copying a large TЗ that would go stale.
+## Run locally
 
-## Non-negotiable distinctions
+The library requires local `data/corpus.sqlite` and `data/library.sqlite` files.
 
-- **FIDE identity is not a game database.** Official FIDE records anchor the player card; separately sourced PGNs supply moves.
-- **Online games are not OTB games.** Lichess's open corpus can support scale later, but it cannot by itself prove an opponent's tournament repertoire.
-- **Stockfish is not history.** The engine evaluates candidate lines; indexed games answer what a player actually played.
-- **The LLM is not the source of truth.** Legal moves, counts, ratings, and citations come from typed services and are checked.
-- **Coverage is visible.** Never imply “all games” if the corpus only contains a sample.
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-ingestion.txt
+cd frontend && npm ci && npm run build && cd ..
+.venv/bin/python -m library serve --corpus data/corpus.sqlite --library data/library.sqlite --port 8765
+```
 
-The functional board reference is [Chess.com Analysis](https://www.chess.com/analysis); the implementation must use its own UI and assets. See the [professional first-release vision in ChessScope](https://github.com/Rokki-Khazratov/ChessScope/blob/3a990511f91aad55285270953179285a61df7b69/docs/product/05-professional-coach-release.md) for the full concept.
+Open `http://localhost:8765`. **Presentation demo** loads the multi-variation board scene. For live coach replies, set `CEREBRAS_API_KEY` in the environment or ignored `.env.local`; `CEREBRAS_MODEL` is optional.
+
+## Evidence and limits
+
+The screenshots were captured from the locally running application. The source-game page is a catalog record; the full workspace uses a bundled [Lichess study PGN](https://lichess.org/study/RoBvWqfx/0IsLRqJa). The prototype was built and its prior frontend verification recorded 26 passing checks. The local index includes quarantined and rejected records, so preparation reports usable samples and exclusions rather than presenting the raw catalog count as a complete repertoire.
+
+Detailed notes: [ingestion](docs/09-database-parsing.md) · [game library](docs/10-game-library.md) · [coach architecture](docs/12-ai-coach-architecture.md) · [preparation plan](docs/13-preparation-redesign-plan.md) · [hackathon wins](docs/14-high-impact-hackathon-wins.md).

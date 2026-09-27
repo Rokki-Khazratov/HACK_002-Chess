@@ -1,0 +1,15 @@
+{
+  "title": "From opponent to study line",
+  "direction": "LR",
+  "nodes": [
+    {"id": "identity", "label": "FIDE identity"},
+    {"id": "games", "label": "Source games"},
+    {"id": "analysis", "label": "Board + Stockfish"},
+    {"id": "study", "label": "Coach + saved line"}
+  ],
+  "edges": [
+    {"from": "identity", "to": "games"},
+    {"from": "games", "to": "analysis"},
+    {"from": "analysis", "to": "study"}
+  ]
+}
