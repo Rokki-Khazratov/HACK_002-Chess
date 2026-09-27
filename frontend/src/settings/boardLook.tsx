@@ -1,32 +1,37 @@
 import type { CSSProperties } from 'react';
 import type { ChessboardOptions, PieceRenderObject } from 'react-chessboard';
-import { ANIMATION_MS, type BoardSettings, PIECE_SETS, themeColors, withAlpha } from './boardSettings';
+import { ANIMATION_MS, type BoardSettings, type PieceSet, PIECE_SETS, themeColors, withAlpha } from './boardSettings';
 
 const PIECE_CODES = ['wP', 'wN', 'wB', 'wR', 'wQ', 'wK', 'bP', 'bN', 'bB', 'bR', 'bQ', 'bK'];
 const pieceCache = new Map<string, PieceRenderObject>();
 
-export function pieceUrl(dir: string, code: string): string {
-  return `${import.meta.env.BASE_URL}pieces/${dir}/${code}.svg`;
+export function pieceUrl(set: PieceSet, code: string): string {
+  if (set.imageBase) return `${set.imageBase}/${code.toLowerCase()}.png`;
+  return `${import.meta.env.BASE_URL}pieces/${set.dir}/${code}.svg`;
 }
 
-/** Renderers for a downloaded piece set, or undefined for the board's built-in pieces. */
+/** Renderers for an image piece set, or undefined for the board's built-in pieces. */
 export function pieceRenderers(setId: string): PieceRenderObject | undefined {
-  const dir = PIECE_SETS.find((set) => set.id === setId)?.dir;
-  if (!dir) return undefined;
-  let renderers = pieceCache.get(dir);
+  const set = PIECE_SETS.find((candidate) => candidate.id === setId);
+  if (!set?.dir && !set?.imageBase) return undefined;
+  let renderers = pieceCache.get(set.id);
   if (!renderers) {
     renderers = {};
     for (const code of PIECE_CODES) {
       renderers[code] = (props) => (
         <img
-          src={pieceUrl(dir, code)}
+          src={pieceUrl(set, code)}
           alt=""
           draggable={false}
+          onError={set.imageBase ? (event) => {
+            const fallback = `${import.meta.env.BASE_URL}pieces/cburnett/${code}.svg`;
+            if (event.currentTarget.src !== new URL(fallback, window.location.href).href) event.currentTarget.src = fallback;
+          } : undefined}
           style={{ width: '100%', height: '100%', display: 'block', ...props?.svgStyle }}
         />
       );
     }
-    pieceCache.set(dir, renderers);
+    pieceCache.set(set.id, renderers);
   }
   return renderers;
 }
@@ -56,7 +61,7 @@ export function boardLook(settings: BoardSettings): { options: ChessboardOptions
     },
     vars: {
       ['--board-lastMove' as string]: withAlpha(settings.highlightColor, 0.55),
-      ['--board-lastMove-from' as string]: withAlpha(settings.highlightColor, 0.35),
+      ['--board-lastMove-from' as string]: withAlpha(settings.highlightColor, 0.55),
       ['--board-selected' as string]: withAlpha(settings.highlightColor, 0.55),
       ['--board-selected-ring' as string]: withAlpha(settings.highlightColor, 0.95),
     },

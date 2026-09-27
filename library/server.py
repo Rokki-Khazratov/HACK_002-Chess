@@ -4,9 +4,6 @@ import mimetypes
 import os
 import re
 import sqlite3
-import ssl
-import urllib.error
-import urllib.request
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -16,6 +13,11 @@ import chess
 
 from ingestion.pgn import export_pgn
 from .build import country, fold
+from .coach.blueprints import catalog
+from .coach.analysis import present_turn
+from .coach.contracts import CoachError, identifier
+from .coach.service import CoachService
+from .tournament_metrics import load_metrics, recent_cutoff
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 RATINGS = Path(__file__).resolve().parent.parent / "frontend" / "public" / "ratings-sep26.json"
@@ -56,6 +58,7 @@ def safe_int(value, default, low, high):
 class Handler(BaseHTTPRequestHandler):
     library_path = None
     corpus_path = None
+    coach = None
 
     def json_response(self, value, status=200):
         content = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
@@ -81,10 +84,28 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path.startswith("/api/"):
                 params = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+                if parsed.path == "/api/ai/actions":
+                    self.json_response({"actions": catalog()})
+                    return
+                if parsed.path in {"/api/ai/history", "/api/ai/export"}:
+                    conversation_id = identifier(params.get("conversationId"))
+                    self.json_response({"turns": [present_turn(turn) for turn in self.coach.store.history(conversation_id, -1 if parsed.path == "/api/ai/export" else 100)]})
+                    return
+                if parsed.path == "/api/ai/conversations":
+                    self.json_response({"conversations": self.coach.store.conversations()})
+                    return
+                if parsed.path == "/api/ai/preparations":
+                    self.json_response({"studies": self.coach.store.preparations()})
+                    return
+                if parsed.path == "/api/ai/active-preparation":
+                    self.json_response({"preparation": self.coach.store.active_preparation()})
+                    return
                 with connect_readonly(self.library_path) as lib:
                     self.api(lib, parsed.path, params)
             else:
                 self.static(parsed.path)
+        except CoachError as exc:
+            self.json_response({"error": str(exc)}, exc.status)
         except (ValueError, sqlite3.Error) as exc:
             self.json_response({"error": str(exc)}, 400)
         except Exception as exc:
@@ -92,69 +113,53 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response({"error": "Could not open the data. Check the local server log."}, 500)
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-        if parsed.path != "/api/chat":
+        path = urlparse(self.path).path
+        if path not in {"/api/chat", "/api/ai/chat", "/api/ai/preparations", "/api/ai/active-preparation", "/api/ai/clone", "/api/ai/demo-seed"}:
             self.json_response({"error": "Unknown endpoint"}, 404)
-            return
-        api_key = os.environ.get("CEREBRAS_API_KEY", "").strip()
-        if not api_key:
-            self.json_response({"error": "Cerebras is not configured. Set CEREBRAS_API_KEY and restart the server."}, 503)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if length < 1 or length > 32_000:
-                raise ValueError("Message is empty or too long")
+            if not 1 <= length <= 64_000:
+                raise CoachError("Request is empty or too long", 413)
             payload = json.loads(self.rfile.read(length))
-            message = str(payload.get("message", "")).strip()[:4000]
-            if not message:
-                raise ValueError("Message is required")
-            data = json.dumps({
-                "model": os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b"),
-                "max_tokens": 256,
-                "messages": [
-                    {"role": "system", "content": "You are a helpful assistant in ChessScope, a chess analysis workspace. For now, answer general questions clearly. The current board position is provided as context; do not claim to have inspected game databases or run an engine."},
-                    {"role": "user", "content": f"Current position (FEN): {str(payload.get('fen', ''))[:200]}\n\nUser message: {message}"},
-                ],
-            }).encode()
-            request = urllib.request.Request(
-                "https://api.cerebras.ai/v1/chat/completions", data=data,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "ChessScope/0.1"},
-                method="POST",
-            )
-            ca_file = next((path for path in (
-                ssl.get_default_verify_paths().cafile,
-                "/etc/ssl/cert.pem",
-                "/etc/ssl/certs/ca-certificates.crt",
-            ) if path and Path(path).is_file()), None)
-            tls_context = ssl.create_default_context(cafile=ca_file)
-            with urllib.request.urlopen(request, timeout=60, context=tls_context) as response:
-                result = json.loads(response.read())
-            reply = result["choices"][0]["message"]["content"]
-            self.json_response({"reply": reply, "model": result.get("model")})
-        except ValueError as exc:
-            self.json_response({"error": str(exc)}, 400)
-        except urllib.error.HTTPError as exc:
-            raw_error = exc.read().decode("utf-8", errors="replace").replace(api_key, "[redacted]")
-            try:
-                error_payload = json.loads(raw_error)
-                error_data = error_payload.get("error", {})
-                provider_error = error_data.get("message", "") if isinstance(error_data, dict) else str(error_data)
-                provider_error = provider_error or error_payload.get("message", "")
-                metadata = error_data.get("metadata", {}) if isinstance(error_data, dict) else {}
-                detail = metadata.get("raw", "") if isinstance(metadata, dict) else ""
-                if detail:
-                    provider_error = f"{provider_error}: {detail}"
-            except (ValueError, AttributeError):
-                provider_error = ""
-            if raw_error:
-                self.log_error("Cerebras returned %s: %s", exc.code, raw_error[:1000])
-            self.json_response({"error": f"Cerebras request failed ({exc.code})" + (f": {provider_error[:300]}" if provider_error else ". Check the key and account access.")}, 502)
+            if path == "/api/ai/demo-seed":
+                conversation_id = identifier(payload.get("conversationId"))
+                turn = payload.get("turn")
+                if not isinstance(turn, dict) or turn.get("conversationId") != conversation_id:
+                    raise CoachError("Invalid demo conversation")
+                self.coach.store.seed_demo(conversation_id, turn)
+                self.json_response({"saved": True})
+                return
+            if path == "/api/ai/clone":
+                source = identifier(payload.get("sourceConversationId"))
+                target = identifier(payload.get("conversationId"))
+                if source == target:
+                    raise CoachError("Choose another chat to clone")
+                self.coach.store.clone(source, target, payload.get("context") or {})
+                self.json_response({"conversationId": target})
+                return
+            if path == "/api/chat":
+                self.json_response(self.coach.legacy_chat(payload))
+                return
+            if path == "/api/ai/preparations":
+                self.coach.save_preparations(payload)
+                self.json_response({"saved": True})
+                return
+            if path == "/api/ai/active-preparation":
+                self.coach.select_preparation(payload)
+                self.json_response({"saved": True})
+                return
+            self.json_response({"turn": self.coach.chat(payload)})
+        except CoachError as exc:
+            self.json_response({"error": str(exc)}, exc.status)
+        except (ValueError, UnicodeError):
+            self.json_response({"error": "Invalid JSON request"}, 400)
         except Exception as exc:
-            self.log_error("chat request failed: %s", exc)
-            self.json_response({"error": "Could not reach Cerebras. Try again."}, 502)
+            self.log_error("coach request failed: %s", type(exc).__name__)
+            self.json_response({"error": "Could not complete or save the coach response. Please retry."}, 500)
 
     def static(self, path):
-        if path in {"/", "/analysis", "/prepare", "/prepare/", "/tournaments", "/ratings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
+        if path in {"/", "/analysis", "/prepare", "/prepare/", "/tournaments", "/ratings", "/chats", "/profile", "/profile/", "/settings"} or re.fullmatch(r"/(games|tournaments|players)/\d+/?", path):
             file = DIST / "index.html"
         else:
             file = (DIST / path.lstrip("/")).resolve()
@@ -354,18 +359,38 @@ class Handler(BaseHTTPRequestHandler):
         q = p.get("q", "").strip()[:80]
         page = safe_int(p.get("page"), 1, 1, 100000)
         limit = safe_int(p.get("limit"), 30, 1, 60)
-        sort = p.get("sort", "games")
-        order = "ev.games DESC,ev.name" if sort != "name" else "ev.name_fold,ev.id"
-        where, args = "", []
+        sort = p.get("sort", "strength")
+        period = "all" if p.get("period") == "all" else "recent"
+        minimum_elo = safe_int(p.get("min_elo"), 2400, 0, 3000)
+        minimum_players = safe_int(p.get("min_players"), 6, 0, 100)
+        where, args = " WHERE ev.games>=2", []
         if q:
             match = fts_query(q)
             if match:
-                where = " WHERE ev.id IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)"
+                where += " AND ev.id IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)"
                 args.append(match)
-        total = db.execute("SELECT count(*) FROM events ev" + where, args).fetchone()[0]
-        rows = db.execute("SELECT ev.id,ev.name,ev.games FROM events ev" + where +
-                          " ORDER BY " + order + " LIMIT ? OFFSET ?", args + [limit, (page - 1) * limit])
-        self.json_response({"total": total, "page": page, "limit": limit, "tournaments": [dict(r) for r in rows]})
+        cutoff = recent_cutoff()
+        metrics = load_metrics(self.library_path, cutoff)
+        rows = []
+        for event in db.execute("SELECT ev.id,ev.name,ev.games FROM events ev" + where, args):
+            info = metrics.get(str(event["id"]), {}).get(period, {})
+            if not info or not info.get("games") or (info.get("avgElo") or 0) < minimum_elo or info.get("ratedPlayers", 0) < minimum_players:
+                continue
+            rows.append({"id": event["id"], "name": event["name"], "games": info["games"],
+                         "totalGames": event["games"], "avgElo": info["avgElo"],
+                         "players": info["players"], "ratedPlayers": info["ratedPlayers"], "lastDate": info["lastDate"]})
+        if sort == "name":
+            rows.sort(key=lambda row: fold(row["name"]))
+        elif sort == "games":
+            rows.sort(key=lambda row: (row["games"], row["avgElo"] or 0), reverse=True)
+        elif sort == "recent":
+            rows.sort(key=lambda row: (row["lastDate"] or "", row["avgElo"] or 0), reverse=True)
+        else:
+            rows.sort(key=lambda row: (row["avgElo"] or 0, row["lastDate"] or "", row["ratedPlayers"]), reverse=True)
+        total = len(rows)
+        self.json_response({"total": total, "page": page, "limit": limit, "period": period,
+                            "recentFrom": cutoff,
+                            "tournaments": rows[(page - 1) * limit:page * limit]})
 
     def tournament_detail(self, db, event_id):
         item = db.execute("SELECT id,name,games FROM events WHERE id=?", (event_id,)).fetchone()
@@ -377,7 +402,8 @@ class Handler(BaseHTTPRequestHandler):
                     sum(result='1/2-1/2') AS draws FROM games WHERE event_id=?""", (event_id,)).fetchone()
         years = [dict(r) for r in db.execute("""SELECT year,count(*) AS games FROM games
                     WHERE event_id=? AND year IS NOT NULL GROUP BY year ORDER BY year DESC LIMIT 30""", (event_id,))]
-        self.json_response(dict(item) | dict(summary) | {"years": years})
+        metrics = load_metrics(self.library_path, recent_cutoff()).get(str(event_id), {})
+        self.json_response(dict(item) | dict(summary) | {"years": years, "strength": metrics.get("all"), "recentStrength": metrics.get("recent")})
 
     def game_detail(self, db, game_id, pgn):
         item = db.execute("""SELECT g.*,ev.name AS tournament FROM games g
@@ -430,13 +456,14 @@ def serve(library, corpus, port=8765):
     if not (DIST / "index.html").is_file():
         raise FileNotFoundError("Build frontend first: cd frontend && npm ci && npm run build")
     Handler.library_path, Handler.corpus_path = library, corpus
-    secret_file = Path(".env.local")
+    secret_file = Path(__file__).resolve().parent.parent / ".env.local"
     if secret_file.is_file():
         for line in secret_file.read_text().splitlines():
             if "=" in line:
                 key, _, value = line.partition("=")
                 if key.strip() and not os.environ.get(key.strip()):
                     os.environ[key.strip()] = value.strip().strip("\"'")
+    Handler.coach = CoachService(library, Path(library).with_name("coach.sqlite"))
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"ChessScope library: http://127.0.0.1:{port}", flush=True)
     httpd.serve_forever()

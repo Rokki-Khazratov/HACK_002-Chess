@@ -1,0 +1,755 @@
+{
+  "meta": {
+    "player": "Magnus Carlsen",
+    "asOf": "2026-09-27",
+    "prototype": true,
+    "dataPolicy": "Do not merge game totals from different databases. Each visualization must preserve its own source scope.",
+    "notes": [
+      "ChessScope Library, 365Chess, Chessgames.com and PGN Mentor contain different game sets.",
+      "Engine-derived metrics are intentionally omitted until a defined PGN corpus is analyzed."
+    ]
+  },
+
+  "player": {
+    "name": "Magnus Carlsen",
+    "displayName": "Carlsen Magnus",
+    "country": "Norway",
+    "countryCode": "NOR",
+    "flag": "🇳🇴",
+    "dateOfBirth": "1990-11-30",
+    "age": 35,
+    "fideId": 1503014,
+    "title": "GM",
+    "titleFull": "Grandmaster",
+    "gmSince": 2004,
+    "worldRank": 1
+  },
+
+  "chessscopeLocalSnapshot": {
+    "source": "ChessScope Library",
+    "gamesInLibrary": 851,
+    "gamesLoaded": 30,
+    "gamesWithoutLoss": 28,
+    "eventsPlayed": 12,
+    "scope": "local-library",
+    "warning": "These values must not be presented as full-career totals."
+  },
+
+  "career": {
+    "source": "365Chess",
+    "scope": "career-database",
+    "period": {
+      "from": 2000,
+      "to": 2026
+    },
+    "games": 3968,
+    "wins": 1745,
+    "draws": 1636,
+    "losses": 587,
+    "winPct": 43.98,
+    "drawPct": 41.23,
+    "lossPct": 14.79,
+    "scorePct": 64.59,
+    "nonLossGames": 3381,
+    "nonLossPct": 85.21,
+    "decisiveGames": 2332,
+    "decisivePct": 58.77
+  },
+
+  "ratings": {
+    "source": "FIDE",
+    "currentPeriod": "2026-09",
+    "current": {
+      "standard": {
+        "rating": 2823,
+        "worldRank": 1
+      },
+      "rapid": {
+        "rating": 2803,
+        "worldRank": 1
+      },
+      "blitz": {
+        "rating": 2860,
+        "worldRank": 1
+      }
+    },
+
+    "peaks": {
+      "standard": {
+        "rating": 2882,
+        "period": "2014-05",
+        "currentDifference": -59,
+        "currentVsPeakPct": 97.95
+      },
+      "rapid": {
+        "rating": 2919,
+        "period": "2017-07",
+        "currentDifference": -116,
+        "currentVsPeakPct": 96.03
+      },
+      "blitz": {
+        "rating": 2986,
+        "period": "2017-12",
+        "currentDifference": -126,
+        "currentVsPeakPct": 95.78
+      }
+    },
+
+    "monthlyHistory": [
+      {
+        "period": "2023-02",
+        "standard": 2852,
+        "standardGames": 13,
+        "rapid": 2839,
+        "rapidGames": 0,
+        "blitz": 2852,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-03",
+        "standard": 2852,
+        "standardGames": 0,
+        "rapid": 2839,
+        "rapidGames": 0,
+        "blitz": 2852,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-04",
+        "standard": 2853,
+        "standardGames": 3,
+        "rapid": 2839,
+        "rapidGames": 0,
+        "blitz": 2852,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-05",
+        "standard": 2853,
+        "standardGames": 0,
+        "rapid": 2839,
+        "rapidGames": 0,
+        "blitz": 2852,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-06",
+        "standard": 2853,
+        "standardGames": 0,
+        "rapid": 2829,
+        "rapidGames": 9,
+        "blitz": 2858,
+        "blitzGames": 27
+      },
+      {
+        "period": "2023-07",
+        "standard": 2835,
+        "standardGames": 9,
+        "rapid": 2829,
+        "rapidGames": 0,
+        "blitz": 2858,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-08",
+        "standard": 2835,
+        "standardGames": 0,
+        "rapid": 2825,
+        "rapidGames": 19,
+        "blitz": 2887,
+        "blitzGames": 18
+      },
+      {
+        "period": "2023-09",
+        "standard": 2839,
+        "standardGames": 14,
+        "rapid": 2818,
+        "rapidGames": 6,
+        "blitz": 2887,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-10",
+        "standard": 2839,
+        "standardGames": 0,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2887,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-11",
+        "standard": 2829,
+        "standardGames": 16,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2887,
+        "blitzGames": 0
+      },
+      {
+        "period": "2023-12",
+        "standard": 2830,
+        "standardGames": 8,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2887,
+        "blitzGames": 0
+      },
+
+      {
+        "period": "2024-01",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2823,
+        "rapidGames": 43,
+        "blitz": 2886,
+        "blitzGames": 21
+      },
+      {
+        "period": "2024-02",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2823,
+        "rapidGames": 0,
+        "blitz": 2886,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-03",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2823,
+        "rapidGames": 0,
+        "blitz": 2886,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-04",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2823,
+        "rapidGames": 0,
+        "blitz": 2886,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-05",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2828,
+        "rapidGames": 12,
+        "blitz": 2886,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-06",
+        "standard": 2830,
+        "standardGames": 0,
+        "rapid": 2827,
+        "rapidGames": 9,
+        "blitz": 2888,
+        "blitzGames": 18
+      },
+      {
+        "period": "2024-07",
+        "standard": 2832,
+        "standardGames": 10,
+        "rapid": 2827,
+        "rapidGames": 0,
+        "blitz": 2888,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-08",
+        "standard": 2832,
+        "standardGames": 0,
+        "rapid": 2827,
+        "rapidGames": 0,
+        "blitz": 2888,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-09",
+        "standard": 2832,
+        "standardGames": 0,
+        "rapid": 2834,
+        "rapidGames": 8,
+        "blitz": 2888,
+        "blitzGames": 11
+      },
+      {
+        "period": "2024-10",
+        "standard": 2831,
+        "standardGames": 8,
+        "rapid": 2834,
+        "rapidGames": 0,
+        "blitz": 2888,
+        "blitzGames": 0
+      },
+      {
+        "period": "2024-11",
+        "standard": 2831,
+        "standardGames": 0,
+        "rapid": 2825,
+        "rapidGames": 10,
+        "blitz": 2893,
+        "blitzGames": 6
+      },
+      {
+        "period": "2024-12",
+        "standard": 2831,
+        "standardGames": 0,
+        "rapid": 2838,
+        "rapidGames": 9,
+        "blitz": 2890,
+        "blitzGames": 18
+      },
+
+      {
+        "period": "2025-01",
+        "standard": 2831,
+        "standardGames": 0,
+        "rapid": 2818,
+        "rapidGames": 7,
+        "blitz": 2889,
+        "blitzGames": 13
+      },
+      {
+        "period": "2025-02",
+        "standard": 2833,
+        "standardGames": 2,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 14
+      },
+      {
+        "period": "2025-03",
+        "standard": 2833,
+        "standardGames": 0,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-04",
+        "standard": 2837,
+        "standardGames": 3,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-05",
+        "standard": 2837,
+        "standardGames": 0,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-06",
+        "standard": 2837,
+        "standardGames": 0,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-07",
+        "standard": 2839,
+        "standardGames": 10,
+        "rapid": 2818,
+        "rapidGames": 0,
+        "blitz": 2883,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-08",
+        "standard": 2839,
+        "standardGames": 0,
+        "rapid": 2808,
+        "rapidGames": 9,
+        "blitz": 2881,
+        "blitzGames": 18
+      },
+      {
+        "period": "2025-09",
+        "standard": 2839,
+        "standardGames": 0,
+        "rapid": 2808,
+        "rapidGames": 0,
+        "blitz": 2881,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-10",
+        "standard": 2839,
+        "standardGames": 0,
+        "rapid": 2808,
+        "rapidGames": 0,
+        "blitz": 2881,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-11",
+        "standard": 2839,
+        "standardGames": 0,
+        "rapid": 2824,
+        "rapidGames": 18,
+        "blitz": 2881,
+        "blitzGames": 0
+      },
+      {
+        "period": "2025-12",
+        "standard": 2840,
+        "standardGames": 1,
+        "rapid": 2824,
+        "rapidGames": 0,
+        "blitz": 2881,
+        "blitzGames": 0
+      },
+
+      {
+        "period": "2026-01",
+        "standard": 2840,
+        "standardGames": 0,
+        "rapid": 2832,
+        "rapidGames": 13,
+        "blitz": 2869,
+        "blitzGames": 27
+      },
+      {
+        "period": "2026-02",
+        "standard": 2840,
+        "standardGames": 0,
+        "rapid": 2832,
+        "rapidGames": 0,
+        "blitz": 2869,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-03",
+        "standard": 2840,
+        "standardGames": 0,
+        "rapid": 2832,
+        "rapidGames": 0,
+        "blitz": 2869,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-04",
+        "standard": 2840,
+        "standardGames": 0,
+        "rapid": 2832,
+        "rapidGames": 0,
+        "blitz": 2869,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-05",
+        "standard": 2840,
+        "standardGames": 0,
+        "rapid": 2832,
+        "rapidGames": 0,
+        "blitz": 2869,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-06",
+        "standard": 2841,
+        "standardGames": 7,
+        "rapid": 2832,
+        "rapidGames": 0,
+        "blitz": 2869,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-07",
+        "standard": 2823,
+        "standardGames": 10,
+        "rapid": 2803,
+        "rapidGames": 8,
+        "blitz": 2860,
+        "blitzGames": 19
+      },
+      {
+        "period": "2026-08",
+        "standard": 2823,
+        "standardGames": 0,
+        "rapid": 2803,
+        "rapidGames": 0,
+        "blitz": 2860,
+        "blitzGames": 0
+      },
+      {
+        "period": "2026-09",
+        "standard": 2823,
+        "standardGames": 0,
+        "rapid": 2803,
+        "rapidGames": 0,
+        "blitz": 2860,
+        "blitzGames": 0
+      }
+    ]
+  },
+
+  "fideRatedActivity": {
+    "source": "FIDE",
+    "note": "2023 aggregate contains Feb-Dec because January is outside the extracted timeline fixture.",
+    "years": [
+      {
+        "year": 2023,
+        "standard": 63,
+        "rapid": 34,
+        "blitz": 45,
+        "total": 142,
+        "partial": true
+      },
+      {
+        "year": 2024,
+        "standard": 18,
+        "rapid": 91,
+        "blitz": 74,
+        "total": 183,
+        "partial": false
+      },
+      {
+        "year": 2025,
+        "standard": 16,
+        "rapid": 34,
+        "blitz": 45,
+        "total": 95,
+        "partial": false
+      },
+      {
+        "year": 2026,
+        "standard": 17,
+        "rapid": 21,
+        "blitz": 46,
+        "total": 84,
+        "partial": true
+      }
+    ]
+  },
+
+  "openings": {
+    "source": "365Chess",
+    "white": [
+      {
+        "eco": "C65",
+        "name": "Ruy Lopez, Berlin Defence",
+        "games": 57
+      },
+      {
+        "eco": "D37",
+        "name": "Queen's Gambit Declined, 4.Nf3",
+        "games": 56
+      },
+      {
+        "eco": "A45",
+        "name": "Queen's Pawn Game",
+        "games": 42
+      },
+      {
+        "eco": "C42",
+        "name": "Petrov's Defence",
+        "games": 42
+      }
+    ],
+    "black": [
+      {
+        "eco": "B30",
+        "name": "Sicilian Defence",
+        "games": 65
+      },
+      {
+        "eco": "B33",
+        "name": "Sicilian Defence",
+        "games": 58
+      },
+      {
+        "eco": "D37",
+        "name": "Queen's Gambit Declined, 4.Nf3",
+        "games": 54
+      },
+      {
+        "eco": "C67",
+        "name": "Ruy Lopez, Berlin Defence, Open Variation",
+        "games": 52
+      }
+    ]
+  },
+
+  "worldTitles": {
+    "classical": {
+      "count": 5,
+      "years": [2013, 2014, 2016, 2018, 2021]
+    },
+    "rapid": {
+      "count": 6,
+      "years": [2014, 2015, 2019, 2022, 2023, 2025]
+    },
+    "blitz": {
+      "count": 9,
+      "years": [2009, 2014, 2017, 2018, 2019, 2022, 2023, 2024, 2025],
+      "notes": {
+        "2024": "Shared FIDE World Blitz title with Ian Nepomniachtchi."
+      }
+    },
+    "combinedMainFideWorldTitles": 20,
+    "worldCup": {
+      "wins": 1,
+      "year": 2023
+    }
+  },
+
+  "careerMilestones": [
+    {
+      "year": 2004,
+      "title": "Grandmaster",
+      "type": "title"
+    },
+    {
+      "year": 2010,
+      "title": "Reached world #1",
+      "type": "ranking"
+    },
+    {
+      "year": 2011,
+      "title": "Began long continuous run at world #1",
+      "type": "ranking"
+    },
+    {
+      "year": 2013,
+      "title": "World Chess Champion",
+      "type": "championship"
+    },
+    {
+      "year": 2014,
+      "title": "Standard rating peak",
+      "value": 2882,
+      "type": "rating"
+    },
+    {
+      "year": 2016,
+      "title": "World Championship defence",
+      "type": "championship"
+    },
+    {
+      "year": 2018,
+      "title": "World Championship defence",
+      "type": "championship"
+    },
+    {
+      "year": 2021,
+      "title": "Fifth classical world title",
+      "type": "championship"
+    },
+    {
+      "year": 2023,
+      "title": "FIDE World Cup winner",
+      "type": "cup"
+    },
+    {
+      "year": 2025,
+      "title": "Sixth World Rapid title",
+      "type": "championship"
+    },
+    {
+      "year": 2025,
+      "title": "Ninth World Blitz title",
+      "type": "championship"
+    }
+  ],
+
+  "recentEvents": [
+    {
+      "name": "Tech Mahindra Global Chess League Final 2026",
+      "date": "2026-09-13",
+      "fieldAverageElo": 2641,
+      "country": "India",
+      "source": "365Chess"
+    },
+    {
+      "name": "Tech Mahindra Global Chess League",
+      "date": "2026-09-05",
+      "fieldAverageElo": 2575,
+      "country": "India",
+      "source": "365Chess"
+    },
+    {
+      "name": "Esports World Cup 2026",
+      "date": "2026-08-14",
+      "fieldAverageElo": 2745,
+      "country": "France",
+      "source": "365Chess"
+    },
+    {
+      "name": "Esports World Cup B 2026",
+      "date": "2026-08-12",
+      "fieldAverageElo": 2703,
+      "country": "France",
+      "source": "365Chess"
+    }
+  ],
+
+  "datasetCoverage": [
+    {
+      "name": "ChessScope Library",
+      "games": 851,
+      "scope": "local",
+      "usedFor": "Local indexed-library statistics"
+    },
+    {
+      "name": "365Chess",
+      "games": 3968,
+      "scope": "career database",
+      "period": "2000-2026",
+      "usedFor": "Career W/D/L and opening frequency"
+    },
+    {
+      "name": "Chessgames.com",
+      "games": 5247,
+      "scope": "mixed database snapshot",
+      "period": "1999-2025",
+      "usedFor": "Coverage comparison only"
+    },
+    {
+      "name": "PGN Mentor",
+      "games": 6615,
+      "scope": "player PGN collection",
+      "updated": "2026-07",
+      "usedFor": "Coverage comparison / future PGN ingestion"
+    }
+  ],
+
+  "advancedAnalytics": {
+    "available": false,
+    "requiresEngineAnalysis": true,
+    "futureFields": [
+      "accuracy",
+      "averageCentipawnLoss",
+      "openingAccuracy",
+      "middlegameAccuracy",
+      "endgameAccuracy",
+      "whiteVsBlackResults",
+      "averageGameLength",
+      "opponentRatingBuckets",
+      "terminationTypes",
+      "blunders",
+      "mistakes",
+      "inaccuracies",
+      "conversionRate",
+      "saveRate",
+      "timePressurePerformance",
+      "queenTradePerformance",
+      "castlingPerformance",
+      "headToHead"
+    ]
+  }
+}

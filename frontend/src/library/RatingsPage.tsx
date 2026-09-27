@@ -4,7 +4,7 @@ import { PlayerAvatar } from '../components/PlayerAvatar';
 import { formatNumber } from './api';
 
 type RankedPlayer = {
-  rank: number; fideId: number; name: string; federation: string; flag: string | null;
+  rank: number; fideId: number; name: string; sex?: string; federation: string; flag: string | null;
   rating: number; birthYear: number | null; title: string | null; games: number;
   ytdChange: number | null; rankChange: number | null; trend: (number | null)[];
 };
@@ -23,6 +23,7 @@ export function RatingsPage({ navigate }: { navigate: Navigate }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [federation, setFederation] = useState('');
+  const [gender, setGender] = useState<'all' | 'women' | 'open'>('all');
   const [limit, setLimit] = useState(100);
   const [sort, setSort] = useState<'rank' | 'name' | 'games' | 'change'>('rank');
   const [liveBannerAvailable, setLiveBannerAvailable] = useState(true);
@@ -36,9 +37,9 @@ export function RatingsPage({ navigate }: { navigate: Navigate }) {
   const federations = useMemo(() => [...new Set(players.map((p) => p.federation))].sort(), [players]);
   const visible = useMemo(() => {
     const q = search.toLocaleLowerCase().trim();
-    const list = players.slice(0, limit).filter((p) => (!q || p.name.toLocaleLowerCase().includes(q) || String(p.fideId).includes(q)) && (!federation || p.federation === federation));
+    const list = players.slice(0, limit).filter((p) => (!q || p.name.toLocaleLowerCase().includes(q) || String(p.fideId).includes(q)) && (!federation || p.federation === federation) && (gender === 'all' || (gender === 'women' ? p.sex === 'F' : p.sex !== 'F')));
     return list.sort(sort === 'name' ? (a, b) => a.name.localeCompare(b.name) : sort === 'games' ? (a, b) => b.games - a.games || a.rank - b.rank : sort === 'change' ? (a, b) => (b.ytdChange ?? -Infinity) - (a.ytdChange ?? -Infinity) : (a, b) => a.rank - b.rank);
-  }, [players, search, federation, limit, sort]);
+  }, [players, search, federation, gender, limit, sort]);
   return <main className="catalog-page ratings-page">
     <div className="catalog-intro"><div><div className="ratings-eyebrow">FIDE · Standard · September 2026</div><h1>World rankings</h1>
       <p>Official monthly classical ratings. Changes compare January and September FIDE lists. The live Top 10 panel comes directly from 2700chess.</p></div>
@@ -50,13 +51,14 @@ export function RatingsPage({ navigate }: { navigate: Navigate }) {
     <div className="ratings-controls">
       <label className="catalog-field ratings-search"><span>Search players</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or FIDE ID" /></label>
       <label className="catalog-field"><span>Federation</span><select value={federation} onChange={(e) => setFederation(e.target.value)}><option value="">All federations</option>{federations.map((code) => <option key={code}>{code}</option>)}</select></label>
+      <label className="catalog-field"><span>Gender category</span><select value={gender} onChange={(e) => setGender(e.target.value as typeof gender)}><option value="all">All players</option><option value="open">Open</option><option value="women">Women</option></select></label>
       <label className="catalog-field"><span>Player pool</span><select value={limit} onChange={(e) => setLimit(Number(e.target.value))}><option value={100}>Top 100</option><option value={300}>Top 300</option></select></label>
       <label className="catalog-field"><span>Sort by</span><select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}><option value="rank">Rating rank</option><option value="name">Name</option><option value="change">2026 rating change</option><option value="games">FIDE games this month</option></select></label>
     </div>
     <div className="ratings-source"><span>{formatNumber(visible.length)} players</span><span>Source: <a href="https://ratings.fide.com/download/standard_sep26frl.zip" target="_blank" rel="noopener noreferrer">FIDE September 2026 rating list ↗</a></span></div>
     {error ? <div className="catalog-empty">Could not load ratings: {error}</div> : !players.length ? <div className="catalog-empty">Loading rankings…</div> :
       <div className="ratings-table-wrap"><table className="ratings-table"><thead><tr><th>#</th><th title="Rank change since January 2026">↑↓</th><th>Player</th><th>Fed</th><th>Classical Elo</th><th title="Rating change since January 2026">2026 Δ</th><th title="January, February and September FIDE ratings">Trend</th><th>Title</th><th>Games</th><th>Born</th><th></th></tr></thead><tbody>
-        {visible.map((p) => <tr key={p.fideId}><td className="ratings-rank">{p.rank}</td><td className={p.rankChange && p.rankChange > 0 ? 'ratings-up' : p.rankChange && p.rankChange < 0 ? 'ratings-down' : 'ratings-muted'}>{p.rankChange === null ? '—' : p.rankChange > 0 ? `↑${p.rankChange}` : p.rankChange < 0 ? `↓${-p.rankChange}` : '—'}</td><td><a className="ratings-player" href={`/players/${p.fideId}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${p.fideId}`); }}><PlayerAvatar id={p.fideId} name={p.name} /><span>{p.name}<small>FIDE {p.fideId}</small></span></a></td><td><span aria-label={p.federation}>{p.federation === 'RUS' ? '🏳️' : p.flag || '◇'} {p.federation}</span></td><td className="ratings-value">{p.rating}</td><td className={p.ytdChange && p.ytdChange > 0 ? 'ratings-up' : p.ytdChange && p.ytdChange < 0 ? 'ratings-down' : 'ratings-muted'}>{p.ytdChange === null ? '—' : p.ytdChange > 0 ? `+${p.ytdChange}` : p.ytdChange || '—'}</td><td><Trend values={p.trend} /></td><td>{p.title || '—'}</td><td>{p.games}</td><td>{p.birthYear || '—'}</td><td><a className="ratings-games" href={`/players/${p.fideId}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${p.fideId}`); }} title="View games">↗</a></td></tr>)}
+        {visible.map((p) => <tr key={p.fideId}><td className="ratings-rank">{p.rank}</td><td className={p.rankChange && p.rankChange > 0 ? 'ratings-up' : p.rankChange && p.rankChange < 0 ? 'ratings-down' : 'ratings-muted'}>{p.rankChange === null ? '—' : p.rankChange > 0 ? `↑${p.rankChange}` : p.rankChange < 0 ? `↓${-p.rankChange}` : '—'}</td><td><a className="ratings-player" href={`/players/${p.fideId}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${p.fideId}`); }}><PlayerAvatar id={p.fideId} name={p.name} /><span>{p.name.replace(/,\s*/g, ' ')}<small>FIDE {p.fideId}</small></span></a></td><td><span aria-label={p.federation}>{p.federation === 'RUS' ? '🏳️' : p.flag || '◇'} {p.federation}</span></td><td className="ratings-value">{p.rating}</td><td className={p.ytdChange && p.ytdChange > 0 ? 'ratings-up' : p.ytdChange && p.ytdChange < 0 ? 'ratings-down' : 'ratings-muted'}>{p.ytdChange === null ? '—' : p.ytdChange > 0 ? `+${p.ytdChange}` : p.ytdChange || '—'}</td><td><Trend values={p.trend} /></td><td>{p.title || '—'}</td><td>{p.games}</td><td>{p.birthYear || '—'}</td><td><a className="ratings-games" href={`/players/${p.fideId}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${p.fideId}`); }} title="View games">↗</a></td></tr>)}
       </tbody></table>{!visible.length && <div className="catalog-empty">No players match these filters.</div>}</div>}
   </main>;
 }

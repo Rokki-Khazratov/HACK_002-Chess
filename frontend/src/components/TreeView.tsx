@@ -26,13 +26,14 @@ const PILL_W = 50;
 const PILL_H = 24;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
-const LOOK_KEY = 'chessscope.treeLook';
+// New key lets the classic layout become the default for existing browsers too.
+const LOOK_KEY = 'chessscope.treeLook.v2';
 
 function storedLook(): TreeLook {
   try {
-    return localStorage.getItem(LOOK_KEY) === 'pills' ? 'pills' : 'git';
+    return localStorage.getItem(LOOK_KEY) === 'git' ? 'git' : 'pills';
   } catch {
-    return 'git';
+    return 'pills';
   }
 }
 
@@ -48,8 +49,7 @@ function branchPath(x1: number, y1: number, x2: number, y2: number): string {
 }
 
 /**
- * Pannable, zoomable graph of the move tree drawn like a git graph: columns are
- * plies, rows are lines, every move is a commit dot on its line.
+ * Pannable, zoomable move tree with classic pills or git-style dots.
  * Drag to pan, wheel to zoom around the cursor, click a node to jump there.
  */
 export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, onContextMenu }: Props) {
@@ -256,6 +256,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
                     >
                       <title>{node.san ? `${node.san}${node.name ? ` — ${node.name}` : ''}` : 'Start'}</title>
                       {qualityMark(node.id, x + 18, y - 12)}
+                      {!!node.chatSources?.length && <g className="tree-chat-mark"><title>{`From chat · Stockfish depth ${node.chatSources[0].depth}`}</title><rect x={x - 14} y={y + 14} width={28} height={10} rx={3} /><text x={x} y={y + 22} textAnchor="middle">Chat</text></g>}
                       <circle cx={x} cy={y} r={16} className="tree-hit" />
                       <circle cx={x} cy={y} r={isCurrent ? 7.5 : isFork ? 5.5 : 4.5} className="tree-dot" />
                       {node.san && (
@@ -336,6 +337,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
                     >
                       <title>{`${node.san}${node.name ? ` — ${node.name}` : ''}`}</title>
                       {qualityMark(node.id, x + PILL_W / 2, y - PILL_H / 2)}
+                      {!!node.chatSources?.length && <g className="tree-chat-mark"><title>{`From chat · Stockfish depth ${node.chatSources[0].depth}`}</title><rect x={x - 14} y={y + 14} width={28} height={10} rx={3} /><text x={x} y={y + 22} textAnchor="middle">Chat</text></g>}
                       <rect x={x - PILL_W / 2} y={y - PILL_H / 2} width={PILL_W} height={PILL_H} rx={PILL_H / 2} />
                       <text x={x} y={y + 4} textAnchor="middle">
                         {piece}
@@ -352,20 +354,20 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
       {/* Zoom and look controls stay tucked away: hover reveals them, a click pins them open. */}
       <div className={`tree-tools${toolsOpen ? ' is-open' : ''}`}>
         <div className="tree-tools-bar">
-          <button type="button" onClick={() => zoomAt(1.25, size.w / 2, size.h / 2)} title="Приблизить">+</button>
-          <button type="button" onClick={() => zoomAt(0.8, size.w / 2, size.h / 2)} title="Отдалить">−</button>
+          <button type="button" onClick={() => zoomAt(1.25, size.w / 2, size.h / 2)} title="Zoom in">+</button>
+          <button type="button" onClick={() => zoomAt(0.8, size.w / 2, size.h / 2)} title="Zoom out">−</button>
           <button type="button" onClick={focus} title="Show nearby moves at a readable scale">Focus</button>
           <button type="button" onClick={() => setView({ k: 1, x: size.w / 2 - cx, y: size.h / 2 - cy })} title="Readable scale">1:1</button>
-          <button type="button" onClick={fit} title="Показать всё дерево">Fit</button>
-          <button type="button" onClick={center} title="К текущему ходу">◎</button>
+          <button type="button" onClick={fit} title="Show entire tree">Fit</button>
+          <button type="button" onClick={center} title="Center on current move">◎</button>
           <span className="tree-tools-sep" aria-hidden="true" />
           <button
             type="button"
             className="tree-tools-look"
             onClick={switchLook}
-            title={look === 'git' ? 'Вернуть прежний вид дерева' : 'Вид git-графа'}
+            title={look === 'git' ? 'Restore previous tree view' : 'Git graph view'}
           >
-            {look === 'git' ? 'Старый вид' : 'Новый вид'}
+            {look === 'git' ? 'Classic view' : 'Graph view'}
           </button>
         </div>
         <button
@@ -373,7 +375,7 @@ export function TreeView({ tree, layout, currentId, qualities = {}, onSelect, on
           className="tree-tools-toggle"
           aria-expanded={toolsOpen}
           onClick={() => setToolsOpen((open) => !open)}
-          title="Масштаб и вид дерева"
+          title="Tree zoom and view"
         >
           ⋯
         </button>

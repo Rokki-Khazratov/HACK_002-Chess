@@ -221,6 +221,9 @@ def build(corpus, target, fide_archive, events_path):
         out.close()
         source_db.close()
         pending.replace(target)
+        # Keep tournament strength ready for the first catalog visit.
+        from .tournament_metrics import load_metrics
+        load_metrics(str(target))
         return overview
     except Exception:
         out.close()

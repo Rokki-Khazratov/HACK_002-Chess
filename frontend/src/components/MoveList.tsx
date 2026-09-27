@@ -53,7 +53,7 @@ export function MoveList({ tree, layout, currentId, qualities = {}, onSelect, on
         onContextMenu(id, event.clientX, event.clientY);
       }}
     >
-      {label}{qualities[id] && <MoveQualityBadge quality={qualities[id]} />}
+      {label}{tree.nodes[id].chatSources?.length ? <span className="move-chat-badge" title="Stockfish variation added from chat">Chat</span> : null}{qualities[id] && <MoveQualityBadge quality={qualities[id]} />}
     </button>
   );
 

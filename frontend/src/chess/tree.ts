@@ -20,6 +20,8 @@ export interface MoveNode {
   name?: string;
   /** Squares and arrows the user drew on this position. */
   shapes?: Shape[];
+  /** Provenance of engine variations explicitly applied from a coach response. */
+  chatSources?: { turnId: string; lineId: string; depth: number; anchorFen: string }[];
 }
 
 export interface MoveTree {
@@ -35,6 +37,15 @@ export interface MoveInput {
 
 let nextId = 0;
 const newId = () => `n${++nextId}`;
+
+/** Keep newly added nodes distinct from IDs in a tree restored from browser storage. */
+export function prepareRestoredTree(tree: MoveTree): MoveTree {
+  for (const id of Object.keys(tree.nodes)) {
+    const match = /^n(\d+)$/.exec(id);
+    if (match) nextId = Math.max(nextId, Number(match[1]));
+  }
+  return tree;
+}
 
 export function createTree(fen: string = START_FEN): MoveTree {
   return {

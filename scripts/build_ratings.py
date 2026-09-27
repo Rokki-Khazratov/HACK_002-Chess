@@ -43,7 +43,7 @@ def read_archive(month, flags):
             rating = int(fields[month.upper() + "26"])
             if rating < 1800:
                 continue
-            rows.append({"fideId": int(fields["ID Number"]), "name": fields["Name"],
+            rows.append({"fideId": int(fields["ID Number"]), "name": fields["Name"], "sex": fields["Sex"],
                          "federation": fields["Fed"], "flag": flags.get(fields["Fed"]), "rating": rating,
                          "birthYear": int(fields["B-day"]) if fields["B-day"].isdigit() else None,
                          "title": fields["Tit"] or fields["WTit"] or None,

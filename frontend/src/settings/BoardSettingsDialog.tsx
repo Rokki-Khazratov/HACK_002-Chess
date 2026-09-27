@@ -64,7 +64,7 @@ function Swatches({ value, colors, onChange, label }: { value: string; colors: {
           onClick={() => onChange(color.value)}
         />
       ))}
-      <label className="bs-swatch bs-swatch-custom" title="Свой цвет">
+      <label className="bs-swatch bs-swatch-custom" title="Custom color">
         <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
       </label>
     </div>
@@ -118,20 +118,20 @@ export function BoardSettingsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="bs-dialog" role="dialog" aria-label="Оформление доски" onClick={(e) => e.stopPropagation()}>
+      <div className="bs-dialog" role="dialog" aria-label="Board appearance" onClick={(e) => e.stopPropagation()}>
         <header className="bs-header">
-          <h2>Доска и фигуры</h2>
-          <button type="button" className="bs-close" onClick={onClose} aria-label="Закрыть">×</button>
+          <h2>Board and pieces</h2>
+          <button type="button" className="bs-close" onClick={onClose} aria-label="Close">×</button>
         </header>
 
         <div className="bs-body">
           <div className="bs-preview-column">
             <Preview settings={settings} />
-            <p className="bs-hint">Изменения применяются сразу и сохраняются в этом браузере.</p>
+            <p className="bs-hint">Changes apply immediately and are saved in this browser.</p>
           </div>
 
           <div className="bs-controls">
-            <Section title="Фигуры">
+            <Section title="Pieces">
               <div className="bs-grid bs-pieces">
                 {PIECE_SETS.map((pieceSet) => (
                   <button
@@ -142,10 +142,10 @@ export function BoardSettingsDialog({ onClose }: { onClose: () => void }) {
                     title={pieceSet.name}
                   >
                     <span className="bs-piece-pair">
-                      {pieceSet.dir ? (
+                      {pieceSet.dir || pieceSet.imageBase ? (
                         <>
-                          <img src={pieceUrl(pieceSet.dir, 'wN')} alt="" />
-                          <img src={pieceUrl(pieceSet.dir, 'bQ')} alt="" />
+                          <img src={pieceUrl(pieceSet, 'wN')} alt="" />
+                          <img src={pieceUrl(pieceSet, 'bQ')} alt="" />
                         </>
                       ) : (
                         <>
@@ -160,7 +160,7 @@ export function BoardSettingsDialog({ onClose }: { onClose: () => void }) {
               </div>
             </Section>
 
-            <Section title="Доска">
+            <Section title="Board">
               <div className="bs-grid bs-boards">
                 {BOARD_THEMES.map((theme) => (
                   <button
@@ -188,65 +188,65 @@ export function BoardSettingsDialog({ onClose }: { onClose: () => void }) {
                   type="button"
                   className={`bs-tile${settings.boardTheme === 'custom' ? ' is-active' : ''}`}
                   onClick={() => set({ boardTheme: 'custom' })}
-                  title="Свои цвета"
+                  title="Custom colors"
                 >
                   <span className="bs-board-swatch">
                     {[settings.customLight, settings.customDark, settings.customDark, settings.customLight].map((color, i) => (
                       <span key={i} style={{ backgroundColor: color }} />
                     ))}
                   </span>
-                  <span className="bs-tile-name">Свои</span>
+                  <span className="bs-tile-name">Custom</span>
                 </button>
               </div>
               {settings.boardTheme === 'custom' && (
                 <div className="bs-custom-colors">
                   <label>
                     <input type="color" value={settings.customLight} onChange={(e) => set({ customLight: e.target.value })} />
-                    Светлые поля
+                    Light squares
                   </label>
                   <label>
                     <input type="color" value={settings.customDark} onChange={(e) => set({ customDark: e.target.value })} />
-                    Тёмные поля
+                    Dark squares
                   </label>
                 </div>
               )}
             </Section>
 
-            <Section title="Подсветка">
-              <Toggle label="Подсвечивать последний ход" checked={settings.highlightMoves} onChange={(v) => set({ highlightMoves: v })} />
-              <Swatches label="Цвет подсветки" value={settings.highlightColor} colors={HIGHLIGHT_COLORS} onChange={(v) => set({ highlightColor: v })} />
-              <Toggle label="Показывать возможные ходы" checked={settings.showLegalMoves} onChange={(v) => set({ showLegalMoves: v })} />
+            <Section title="Highlights">
+              <Toggle label="Highlight last move" checked={settings.highlightMoves} onChange={(v) => set({ highlightMoves: v })} />
+              <Swatches label="Highlight color" value={settings.highlightColor} colors={HIGHLIGHT_COLORS} onChange={(v) => set({ highlightColor: v })} />
+              <Toggle label="Show legal moves" checked={settings.showLegalMoves} onChange={(v) => set({ showLegalMoves: v })} />
             </Section>
 
-            <Section title="Стрелка движка">
-              <Swatches label="Цвет стрелки" value={settings.arrowColor} colors={ARROW_COLORS} onChange={(v) => set({ arrowColor: v })} />
+            <Section title="Engine arrow">
+              <Swatches label="Arrow color" value={settings.arrowColor} colors={ARROW_COLORS} onChange={(v) => set({ arrowColor: v })} />
             </Section>
 
-            <Section title="Координаты">
+            <Section title="Coordinates">
               <Segmented
                 value={settings.coordinates}
-                options={[['inside', 'На доске'], ['none', 'Скрыть']]}
+                options={[['inside', 'On board'], ['none', 'Hide']]}
                 onChange={(v) => set({ coordinates: v })}
               />
             </Section>
 
-            <Section title="Анимация фигур">
+            <Section title="Piece animation">
               <Segmented
                 value={settings.animation}
-                options={[['none', 'Нет'], ['fast', 'Быстро'], ['normal', 'Обычно'], ['slow', 'Медленно']]}
+                options={[['none', 'None'], ['fast', 'Fast'], ['normal', 'Normal'], ['slow', 'Slow']]}
                 onChange={(v) => set({ animation: v })}
               />
             </Section>
 
-            <Section title="Интерфейс">
-              <Toggle label="Шкала оценки у доски" checked={settings.showEvalBar} onChange={(v) => set({ showEvalBar: v })} />
+            <Section title="Interface">
+              <Toggle label="Board evaluation bar" checked={settings.showEvalBar} onChange={(v) => set({ showEvalBar: v })} />
             </Section>
           </div>
         </div>
 
         <footer className="bs-footer">
-          <button type="button" className="btn" onClick={resetBoardSettings}>Сбросить</button>
-          <button type="button" className="btn bs-done" onClick={onClose}>Готово</button>
+          <button type="button" className="btn" onClick={resetBoardSettings}>Reset</button>
+          <button type="button" className="btn bs-done" onClick={onClose}>Done</button>
         </footer>
       </div>
     </div>

@@ -8,6 +8,7 @@ import type { GameDetail } from './api';
 import { MOCK_PGN } from '../dev/mockGame';
 
 type Loaded = { game: GameDetail; tree: MoveTree; note: string };
+const displayName = (name: string | null) => (name || '').replace(/,\s*/g, ' ');
 
 function legalPrefix(game: GameDetail): MoveTree {
   let tree = createTree(game.initial_fen);
@@ -38,7 +39,7 @@ export function GamePage({ id, navigate }: { id: number; navigate: Navigate }) {
       setLoaded('error' in result
         ? { game, tree:legalPrefix(game), note:'The source PGN contains an error. Showing the available legal moves.' }
         : { game, tree:result.tree, note:'' });
-      document.title = `${game.white_name} — ${game.black_name} · ChessScope`;
+      document.title = `${displayName(game.white_name)} — ${displayName(game.black_name)} · ChessScope`;
     }).catch((e: Error) => { if (!controller.signal.aborted) setError(e.message); });
     return () => { controller.abort(); document.title = 'ChessScope'; };
   }, [id]);
@@ -56,12 +57,12 @@ export function GamePage({ id, navigate }: { id: number; navigate: Navigate }) {
   return <main className="game-page">
     <div className="game-page-heading">
       <div><button className="back-link" type="button" onClick={() => navigate('/')}>← Back to games</button>
-        <h1>{displayedGame.white_id ? <a href={`/players/${displayedGame.white_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${displayedGame.white_id}`); }}>{displayedGame.white_name}</a> : displayedGame.white_name} <span>—</span> {displayedGame.black_id ? <a href={`/players/${displayedGame.black_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${displayedGame.black_id}`); }}>{displayedGame.black_name}</a> : displayedGame.black_name}</h1>
+        <h1>{displayedGame.white_id ? <a href={`/players/${displayedGame.white_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${displayedGame.white_id}`); }}>{displayName(displayedGame.white_name)}</a> : displayName(displayedGame.white_name)} <span>—</span> {displayedGame.black_id ? <a href={`/players/${displayedGame.black_id}`} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(`/players/${displayedGame.black_id}`); }}>{displayName(displayedGame.black_name)}</a> : displayName(displayedGame.black_name)}</h1>
         <div className="game-page-context">{mockLoaded ? <span className="game-mock-label">Mock data · {displayedGame.tournament}</span> : <a href={`/tournaments/${game.event_id}`} onClick={(e) => { e.preventDefault(); navigate(`/tournaments/${game.event_id}`); }}>{game.tournament}</a>}
           <span className="game-result">{displayedGame.result}</span><span>{displayedGame.played_on || 'Date unknown'}</span>{displayedGame.round && <span>Round {displayedGame.round}</span>}{displayedGame.eco && <span>{displayedGame.eco}</span>}</div></div>
       <div className="game-page-actions"><a href={mockLoaded ? `data:application/x-chess-pgn;charset=utf-8,${encodeURIComponent(MOCK_PGN)}` : `/api/games/${id}/pgn`} download={mockLoaded ? 'carlsen-nepomniachtchi-game6.pgn' : undefined}>Download PGN</a>{source && <a href={source} target="_blank" rel="noopener noreferrer">Source ↗</a>}</div>
     </div>
     {note && <p className="game-parse-note">{note}</p>}
-    <App initialTree={tree} game={displayedGame} onMockChange={(enabled) => { setMockLoaded(enabled); document.title = enabled ? 'Carlsen — Nepomniachtchi · ChessScope' : `${game.white_name} — ${game.black_name} · ChessScope`; }} />
+    <App initialTree={tree} game={displayedGame} onMockChange={(enabled) => { setMockLoaded(enabled); document.title = enabled ? 'Carlsen — Nepomniachtchi · ChessScope' : `${displayName(game.white_name)} — ${displayName(game.black_name)} · ChessScope`; }} />
   </main>;
 }

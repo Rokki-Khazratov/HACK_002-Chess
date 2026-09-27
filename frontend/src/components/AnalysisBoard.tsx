@@ -166,7 +166,7 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, shapes, onSh
 
   const settings = useBoardSettings();
   const look = boardLook(settings);
-  const pieceDir = PIECE_SETS.find((set) => set.id === settings.pieceSet)?.dir;
+  const pieceSet = PIECE_SETS.find((set) => set.id === settings.pieceSet);
 
   const squareStyles: Record<string, CSSProperties> = {};
   if (lastMove && settings.highlightMoves) {
@@ -264,8 +264,8 @@ export function AnalysisBoard({ fen, lastMove, orientation, arrows, shapes, onSh
                     setPending(null);
                   }}
                 >
-                  {pieceDir ? (
-                    <img className="promotion-piece" src={pieceUrl(pieceDir, `${whiteToMove ? 'w' : 'b'}${piece.toUpperCase()}`)} alt="" />
+                  {pieceSet?.dir || pieceSet?.imageBase ? (
+                    <img className="promotion-piece" src={pieceUrl(pieceSet, `${whiteToMove ? 'w' : 'b'}${piece.toUpperCase()}`)} alt="" />
                   ) : whiteToMove ? white : black}
                 </button>
               ))}

@@ -3,11 +3,16 @@ import type { Arrow } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import './App.css';
 import './tree-and-tabs.css';
-import { UiSwitcher } from './ui/UiSwitcher';
-import { type Section, UI_VARIANTS, initialVariant, rememberVariant } from './ui/variants';
-import './ui/variants.css';
+import { type Section, UI_VARIANTS } from './ui/variants';
 import { AnalysisBoard } from './components/AnalysisBoard';
 import { ChatPanel } from './components/ChatPanel';
+import { analysisId, newAnalysisId, boardContext, saveAnalysis } from './ai/context';
+import { seedDemoConversation } from './ai/api';
+import { selectPreparation, usePreparation } from './ai/preparation';
+import type { CoachContext, CoachEngineLine, CoachTurn } from './ai/types';
+import { applyChatLine } from './chess/chatLines';
+import { playMoveSound } from './chess/moveSound';
+import { clearAnalysisChanges, confirmDiscardAnalysis, markAnalysisChanged } from './chess/unsavedAnalysis';
 import { EnginePanel } from './components/EnginePanel';
 import { EvalBar } from './components/EvalBar';
 import { BoardSettingsDialog } from './settings/BoardSettingsDialog';
@@ -33,6 +38,7 @@ import {
   lineEnd,
   nextFork,
   promoteNode,
+  prepareRestoredTree,
   renameNode,
   setShapes,
   switchLine,
@@ -47,11 +53,12 @@ const MOCK_GAME = {
   white_rating: 2855, black_rating: 2782, white_fed: 'NOR', black_fed: 'RUS', white_flag: '🇳🇴', black_flag: '🏳️',
   result: '1-0', played_on: '2021-12-03',
 } as GameDetail;
+const DEMO_ID = 'demo:chessscope-showcase';
 type PanelTab = 'moves' | 'tree';
 
 function PlayerStrip({ game, color, children }: { game?: GameDetail; color: 'white' | 'black'; children?: ReactNode }) {
   const id = color === 'white' ? game?.white_id : game?.black_id;
-  const name = color === 'white' ? game?.white_name : game?.black_name;
+  const name = (color === 'white' ? game?.white_name : game?.black_name)?.replace(/,\s*/g, ' ');
   const federation = color === 'white' ? game?.white_fed : game?.black_fed;
   const flag = color === 'white' ? game?.white_flag : game?.black_flag;
   const rating = color === 'white' ? game?.white_rating : game?.black_rating;
@@ -76,22 +83,79 @@ function storedTab(): PanelTab {
 
 function storedWorkspace() {
   try {
-    const saved = JSON.parse(localStorage.getItem('chessscope.workspace') || '{}');
-    return { chat: Number(saved.chat) || 20, moves: Number(saved.moves) || 35, chatOpen: saved.chatOpen !== false };
-  } catch { return { chat: 20, moves: 35, chatOpen: true }; }
+    const currentLayout = localStorage.getItem('chessscope.obsidianLayout.v2');
+    const saved = JSON.parse(currentLayout || localStorage.getItem('chessscope.obsidianLayout') || '{}');
+    return { middle: Math.max(300, Math.min(650, Number(saved.middle) || 390)),
+      coach: Math.max(320, Math.min(650, Number(saved.coach) || 430)),
+      moves: Math.max(18, Math.min(75, currentLayout ? Number(saved.moves) || 18 : Math.round((Number(saved.moves) || 30) * 0.6))), chatOpen: saved.chatOpen !== false };
+  } catch { return { middle: 390, coach: 430, moves: 18, chatOpen: true }; }
 }
 
 function storedMoveIcons() {
-  try { return localStorage.getItem('chessscope.moveIcons') !== 'false'; }
-  catch { return true; }
+  try { return localStorage.getItem('chessscope.moveIcons.v2') === 'true'; }
+  catch { return false; }
+}
+
+function storedMoveSound() {
+  try { return localStorage.getItem('chessscope.moveSound.v2') === 'true'; }
+  catch { return false; }
+}
+
+function gameConversation(id: number) {
+  try {
+    const opened = sessionStorage.getItem('chessscope.openChat');
+    if (opened?.startsWith(`game:${id}:`) || opened === `game:${id}` || opened?.startsWith('prep:')) {
+      sessionStorage.removeItem('chessscope.openChat');
+      localStorage.setItem(`chessscope.gameChat:${id}`, opened);
+      return opened;
+    }
+    return localStorage.getItem(`chessscope.gameChat:${id}`) || `game:${id}`;
+  } catch { return `game:${id}`; }
+}
+
+function boardConversation() {
+  try {
+    const opened = sessionStorage.getItem('chessscope.openChat');
+    if (opened && /^(analysis|import|demo|prep):/.test(opened)) { sessionStorage.removeItem('chessscope.openChat'); return opened; }
+  } catch { /* Use a fresh conversation. */ }
+  return newAnalysisId();
+}
+
+function presentationDemo() {
+  try { return sessionStorage.getItem('chessscope.presentationDemo') === 'true'; }
+  catch { return false; }
+}
+
+function storedBoard(gameId?: number): MoveTree | null {
+  try {
+    const opened = sessionStorage.getItem('chessscope.openChat');
+    const id = opened || (gameId ? localStorage.getItem(`chessscope.gameChat:${gameId}`) || `game:${gameId}` : null);
+    const raw = id && localStorage.getItem(`chessscope.board:${id}`);
+    if (!raw) return null;
+    const tree = JSON.parse(raw) as MoveTree;
+    return tree.rootId && tree.nodes?.[tree.rootId] ? prepareRestoredTree(tree) : null;
+  } catch { return null; }
 }
 
 export default function App({ initialTree, game, onMockChange }: { initialTree?: MoveTree; game?: GameDetail; onMockChange?: (loaded: boolean) => void }) {
-  const [tree, setTree] = useState<MoveTree>(() => initialTree ?? createTree());
-  const [currentId, setCurrentId] = useState(tree.rootId);
+  const [tree, setTree] = useState<MoveTree>(() => {
+    if (presentationDemo()) {
+      const result = importPgn(MOCK_PGN);
+      if (!('error' in result)) return result.tree;
+    }
+    try { const saved = sessionStorage.getItem('chessscope.openAnalysis'); if (saved) { sessionStorage.removeItem('chessscope.openAnalysis'); return prepareRestoredTree(JSON.parse(saved) as MoveTree); } } catch { /* Start with an empty board when storage is unavailable. */ }
+    return storedBoard(game?.id) ?? initialTree ?? createTree();
+  });
+  const preparation = usePreparation();
+  const [coachBoard, setCoachBoard] = useState<{ id: string; source: CoachContext['boardSource'] }>(() => ({
+    id: presentationDemo() ? DEMO_ID : game?.id ? `game:${game.id}` : analysisId(), source: presentationDemo() ? 'demo' : game?.id ? 'library' : 'analysis',
+  }));
+  const [conversationId, setConversationId] = useState(() => presentationDemo() ? DEMO_ID : game?.id ? gameConversation(game.id) : boardConversation());
+  const [currentId, setCurrentId] = useState(() => presentationDemo() ? nextFork(tree, tree.rootId) ?? tree.rootId : tree.rootId);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
-  const [engineEnabled, setEngineEnabled] = useState(true);
+  const [engineEnabled, setEngineEnabled] = useState(presentationDemo());
   const [engine, setEngine] = useState<EngineState>({ fen: null, depth: 0, lines: [], status: 'loading' });
+  const [coachPreview, setCoachPreview] = useState<{ fen: string; from: string; to: string } | null>(null);
   const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const [pgnOpen, setPgnOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -101,19 +165,46 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const boardSettings = useBoardSettings();
-  const [mockLoaded, setMockLoaded] = useState(false);
-  const [variantId, setVariantId] = useState(initialVariant);
-  const variant = UI_VARIANTS.find((item) => item.id === variantId) ?? UI_VARIANTS[0];
-  const changeVariant = (id: string) => { setVariantId(id); rememberVariant(id); };
-  const [workspace, setWorkspace] = useState(storedWorkspace);
+  const [mockLoaded, setMockLoaded] = useState(presentationDemo());
+  const variant = UI_VARIANTS[0];
+  const [workspace, setWorkspace] = useState(() => presentationDemo() ? { middle: 390, coach: 480, moves: 34, chatOpen: true } : storedWorkspace());
   const [moveIcons, setMoveIcons] = useState(storedMoveIcons);
+  const [moveSound, setMoveSound] = useState(storedMoveSound);
   const [reviews, setReviews] = useState<Record<string, PositionReview>>({});
   const appRef = useRef<HTMLDivElement>(null);
-  const resizing = useRef<'chat' | 'moves' | null>(null);
+  const middleRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const resizing = useRef<'middle' | 'coach' | 'stack' | null>(null);
 
   const current = tree.nodes[currentId];
+  const lastSoundNode = useRef(currentId);
+  useEffect(() => {
+    if (lastSoundNode.current === currentId) return;
+    lastSoundNode.current = currentId;
+    if (moveSound && current.san) playMoveSound();
+  }, [currentId, current.san, moveSound]);
   const layout = useMemo(() => layoutTree(tree), [tree]);
   const engineRef = useRef<StockfishEngine | null>(null);
+  useEffect(() => {
+    if (conversationId !== DEMO_ID) return;
+    const controller = new AbortController();
+    import('./ai/api').then(({ loadHistory }) => loadHistory(DEMO_ID, controller.signal)).then(({ turns }) => {
+      if (controller.signal.aborted || turns.length) return;
+      const position = boardContext(tree, currentId, 'demo', undefined, preparation, undefined);
+      void seedDemoConversation(DEMO_ID, {
+        id: 'demo-chessscope-turn', conversationId: DEMO_ID, action: 'ask', blueprintVersion: 'demo',
+        message: 'What should I notice in this position, and how can I prepare a practical continuation?',
+        reply: '', model: 'ChessScope demo', createdAt: new Date().toISOString(), demo: true,
+        analysis: { summary: 'White has converted central space into a lasting initiative. The position is from the Carlsen–Nepomniachtchi 2021 World Championship game 6; the tree keeps the played game beside named analytical branches.', sections: [
+          { kind: 'white_plan', title: 'Position plan', items: ['Keep the central bind and improve the least active piece before opening the position.', 'Compare the game continuation with the side branches in the tree; each branch starts from a shared decision point.'] },
+          { kind: 'risks', title: 'What to verify', items: ['The coach response is illustrative demo copy. Run Stockfish at the selected position for current engine lines.', 'Use the source game and move history as historical evidence; engine evaluation and coach interpretation are separate.'] },
+          { kind: 'next_steps', title: 'Continue the study', items: ['Select a branch node to inspect its exact position.', 'Run the engine, ask a position specific question, then name and save the variation you want to keep.'] },
+        ], lineExplanations: {} }, engineLines: [], positionFacts: null,
+        context: position,
+      });
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [conversationId]);
 
   useEffect(() => {
     const instance = new StockfishEngine((next) => {
@@ -135,26 +226,38 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   }, [current.fen, engineEnabled]);
 
   useEffect(() => {
-    try { localStorage.setItem('chessscope.workspace', JSON.stringify(workspace)); }
+    try { localStorage.setItem('chessscope.obsidianLayout.v2', JSON.stringify(workspace)); }
     catch { /* Storage is optional. */ }
   }, [workspace]);
 
   useEffect(() => {
-    try { localStorage.setItem('chessscope.moveIcons', String(moveIcons)); }
+    try { localStorage.setItem('chessscope.moveIcons.v2', String(moveIcons)); }
     catch { /* Storage is optional. */ }
   }, [moveIcons]);
 
   useEffect(() => {
+    try { localStorage.setItem('chessscope.moveSound.v2', String(moveSound)); }
+    catch { /* Storage is optional. */ }
+  }, [moveSound]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`chessscope.board:${conversationId}`, JSON.stringify(tree)); }
+    catch { /* Board remains available in this visit. */ }
+  }, [conversationId, tree]);
+
+  useEffect(() => {
     const move = (event: globalThis.PointerEvent) => {
       if (!resizing.current || !appRef.current) return;
+      if (resizing.current === 'stack' && stackRef.current) {
+        const rect = stackRef.current.getBoundingClientRect();
+        const maxHeight = Math.max(18, Math.min(75, 100 * (rect.height - 156) / window.innerHeight));
+        setWorkspace((previous) => ({ ...previous, moves: Math.max(18, Math.min(maxHeight, 100 * (event.clientY - rect.top) / window.innerHeight)) }));
+        return;
+      }
       const rect = appRef.current.getBoundingClientRect();
-      const position = 100 * (event.clientX - rect.left) / rect.width;
-      const chatMin = 190 / rect.width * 100;
-      const movesMin = 320 / rect.width * 100;
-      const boardMin = 340 / rect.width * 100;
-      setWorkspace((previous) => resizing.current === 'chat'
-        ? { ...previous, chat: Math.max(chatMin, Math.min(position, 100 - previous.moves - boardMin)) }
-        : { ...previous, moves: Math.max(movesMin, Math.min(100 - position, 100 - (previous.chatOpen ? previous.chat : 0) - boardMin)) });
+      setWorkspace((previous) => resizing.current === 'middle' && middleRef.current
+        ? { ...previous, middle: Math.max(300, Math.min(middleRef.current.getBoundingClientRect().right - event.clientX, rect.width - 500 - (previous.chatOpen ? previous.coach : 0))) }
+        : { ...previous, coach: Math.max(320, Math.min(rect.right - 10 - event.clientX, rect.width - 500 - previous.middle)) });
     };
     const stop = () => { resizing.current = null; document.body.classList.remove('workspace-resizing'); };
     window.addEventListener('pointermove', move);
@@ -164,21 +267,22 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); window.removeEventListener('blur', stop); };
   }, []);
 
-  const beginResize = (side: 'chat' | 'moves', event: PointerEvent<HTMLDivElement>) => {
+  const beginResize = (side: 'middle' | 'coach' | 'stack', event: PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     resizing.current = side;
     document.body.classList.add('workspace-resizing');
   };
 
-  const resizeWithKeyboard = (side: 'chat' | 'moves', event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const resizeWithKeyboard = (side: 'middle' | 'coach' | 'stack', event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (side === 'stack' ? !['ArrowUp', 'ArrowDown'].includes(event.key) : !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
     const width = appRef.current?.getBoundingClientRect().width || window.innerWidth;
-    const step = 160 / width * 100 * (event.key === 'ArrowRight' ? 1 : -1);
-    setWorkspace((previous) => side === 'chat'
-      ? { ...previous, chat: Math.max(190 / width * 100, Math.min(previous.chat + step, 100 - previous.moves - 340 / width * 100)) }
-      : { ...previous, moves: Math.max(320 / width * 100, Math.min(previous.moves - step, 100 - (previous.chatOpen ? previous.chat : 0) - 340 / width * 100)) });
+    setWorkspace((previous) => side === 'stack'
+      ? { ...previous, moves: Math.max(18, Math.min(75, previous.moves + (event.key === 'ArrowDown' ? 2 : -2))) }
+      : side === 'middle'
+        ? { ...previous, middle: Math.max(300, Math.min(previous.middle + (event.key === 'ArrowLeft' ? 24 : -24), width - 500 - (previous.chatOpen ? previous.coach : 0))) }
+        : { ...previous, coach: Math.max(320, Math.min(previous.coach + (event.key === 'ArrowLeft' ? 24 : -24), width - 500 - previous.middle)) });
   };
 
   useEffect(() => {
@@ -204,6 +308,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
     (move: MoveInput): boolean => {
       const result = addMove(tree, currentId, move);
       if (!result) return false;
+      if (result.tree !== tree) markAnalysisChanged();
       setTree(result.tree);
       setChooser(null);
       setCurrentId(result.nodeId);
@@ -221,10 +326,63 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       nextTree = result.tree;
       nodeId = result.nodeId;
     }
+    if (nextTree !== tree) markAnalysisChanged();
     setTree(nextTree);
     // Stay on the first move of the line so the user can step through it.
     const first = nextTree.nodes[currentId].children.find((id) => nextTree.nodes[id].uci === uciMoves[0]);
     if (first) select(first);
+  };
+
+  const playCoachLine = (turn: CoachTurn, line: CoachEngineLine, ply?: number): string | undefined => {
+    if (turn.context.gameId && (coachBoard.source !== 'library' || turn.context.gameId !== game?.id)) {
+      return 'Open the original library game before adding this variation.';
+    }
+    const result = applyChatLine(tree, turn, line);
+    if ('error' in result) return result.error;
+    if (result.tree !== tree) markAnalysisChanged();
+    setTree(result.tree);
+    setCoachPreview(null);
+    select(ply ? result.nodeIds[Math.min(ply, result.nodeIds.length) - 1] : result.nodeId);
+    setTab('tree');
+    setToast('Stockfish variation added · Chat');
+  };
+
+  const previewCoachLine = (turn: CoachTurn, line: CoachEngineLine, ply: number | null) => {
+    if (ply === null) { setCoachPreview(null); return; }
+    if (turn.context.board?.rootFen !== tree.nodes[tree.rootId].fen || !turn.engineLines?.some((item) => item.id === line.id)) return;
+    try {
+      const board = new Chess(line.fen);
+      for (const uci of line.uci.slice(0, ply)) board.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+      const last = line.uci[ply - 1];
+      setCoachPreview({ fen: board.fen(), from: last.slice(0, 2), to: last.slice(2, 4) });
+    } catch { setCoachPreview(null); }
+  };
+
+  const prepareCoachContext = (snapshot: CoachContext): Promise<CoachContext> => {
+    const fen = snapshot.board?.fen;
+    if (!fen || snapshot.board?.engine) return Promise.resolve(snapshot);
+    return new Promise((resolve) => {
+      let finished = false;
+      let timer: number;
+      let analyst: StockfishEngine;
+      let latestLines: EngineState['lines'] = [];
+      const finish = (lines: EngineState['lines']) => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        analyst.destroy();
+        resolve(lines.length ? { ...snapshot, board: { ...snapshot.board!, engine: {
+          fen, lines: lines.slice(0, 5).map(({ depth, score, pv }) => ({ depth, score, pv: pv.slice(0, 30) })),
+        } } } : snapshot);
+      };
+      analyst = new StockfishEngine((state) => {
+        if (state.fen !== fen) return;
+        if (state.lines.length) latestLines = state.lines;
+        if (state.status === 'error' || state.status === 'done' || (state.lines.length >= 5 && state.lines.every((line) => line.depth >= 12))) finish(state.lines);
+      }, { multiPv: 5, maxDepth: 18 });
+      timer = window.setTimeout(() => finish(latestLines), 25_000);
+      analyst.analyse(fen);
+    });
   };
 
   const goBack = () => current.parentId && select(current.parentId);
@@ -352,7 +510,11 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   };
 
   const reset = () => {
+    if (!confirmDiscardAnalysis()) return;
+    clearAnalysisChanges();
     const fresh = createTree();
+    setCoachBoard({ id: newAnalysisId(), source: 'analysis' });
+    setConversationId(newAnalysisId());
     setTree(fresh);
     select(fresh.rootId);
     setMockLoaded(false);
@@ -361,17 +523,34 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
 
   /** Dev helper: load every variation and start at the first branch. */
   const loadMock = () => {
+    if (!confirmDiscardAnalysis()) return;
     const result = importPgn(MOCK_PGN);
     if ('error' in result) {
       setToast(`Mock PGN failed: ${result.error}`);
       return;
     }
+    clearAnalysisChanges();
+    setCoachBoard({ id: 'demo:carlsen-nepomniachtchi', source: 'demo' });
+    setConversationId(`demo:${crypto.randomUUID()}`);
     setTree(result.tree);
     select(nextFork(result.tree, result.tree.rootId) ?? result.tree.rootId);
     setTab('tree');
     setMockLoaded(true);
     onMockChange?.(true);
     setToast('Mock game loaded');
+  };
+
+  const loadPresentationDemo = () => {
+    const result = importPgn(MOCK_PGN);
+    if ('error' in result) { setToast(`Demo PGN failed: ${result.error}`); return; }
+    clearAnalysisChanges();
+    const first = nextFork(result.tree, result.tree.rootId) ?? result.tree.rootId;
+    const id = nextFork(result.tree, first) ?? first;
+    try { sessionStorage.setItem('chessscope.presentationDemo', 'true'); } catch { /* Current view still works. */ }
+    setCoachBoard({ id: DEMO_ID, source: 'demo' }); setConversationId(DEMO_ID);
+    setTree(result.tree); setCurrentId(id); setTab('tree'); setMockLoaded(true); setEngineEnabled(true);
+    setWorkspace({ middle: 390, coach: 480, moves: 34, chatOpen: true });
+    setToast('Presentation demo loaded');
   };
 
   const status = (() => {
@@ -399,10 +578,10 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
   const openMenu = (nodeId: string, x: number, y: number) => setMenu({ nodeId, x, y });
 
   const workspaceStyle = {
-    gridTemplateColumns: workspace.chatOpen
-      ? `${workspace.chat}% 6px minmax(0, 1fr) 6px ${workspace.moves}%`
-      : `minmax(0, 1fr) 6px ${workspace.moves}%`,
-  } satisfies CSSProperties;
+    '--middle-width': `${workspace.middle}px`,
+    '--coach-width': `${workspace.coach}px`,
+    '--moves-height': `${workspace.moves}vh`,
+  } as CSSProperties;
 
   const moveView = variant.splitTree ? 'moves' : tab;
   const sections: Record<Section, ReactNode> = {
@@ -412,13 +591,13 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           <PlayerStrip game={activeGame} color={topColor} />
           {boardSettings.showEvalBar && <EvalBar score={bestScore} flipped={orientation === 'black'} />}
           <AnalysisBoard
-            fen={current.fen}
-            lastMove={current.from && current.to ? { from: current.from, to: current.to } : null}
+            fen={coachPreview?.fen ?? current.fen}
+            lastMove={coachPreview ? { from: coachPreview.from, to: coachPreview.to } : current.from && current.to ? { from: current.from, to: current.to } : null}
             orientation={orientation}
             arrows={arrows}
             shapes={current.shapes ?? []}
-            onShapesChange={(shapes) => setTree((t) => setShapes(t, currentId, shapes))}
-            onMove={play}
+            onShapesChange={(shapes) => { markAnalysisChanged(); setTree((t) => setShapes(t, currentId, shapes)); }}
+            onMove={coachPreview ? () => false : play}
           />
           <PlayerStrip game={activeGame} color={bottomColor}>
               <button
@@ -428,8 +607,8 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
                   event.stopPropagation();
                   setSettingsOpen(true);
                 }}
-                title="Доска и фигуры"
-                aria-label="Настройки доски и фигур"
+                title="Board and pieces"
+                aria-label="Board and piece settings"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="3" />
@@ -439,7 +618,6 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           </PlayerStrip>
         </div>
       </main>),
-    title: <h1 className="panel-title">Analysis</h1>,
     engine: (<EnginePanel
           engine={engineCurrent || !engineEnabled ? engine : { ...engine, lines: [], depth: 0 }}
           enabled={engineEnabled}
@@ -473,8 +651,11 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
             </button>
           ))}
           <span className="tabs-meta" title="All imported positions, including variations">{positionCount} nodes · {sideLines} lines</span>
+          <button type="button" className="tabs-mock" onClick={loadPresentationDemo} title="Load a full-screen case study showcase">Presentation demo</button>
+          <button type="button" className="tabs-sound" onClick={() => { if (!moveSound) playMoveSound(); setMoveSound((value) => !value); }} title={moveSound ? 'Move sounds on' : 'Move sounds off'} aria-pressed={moveSound}>
+            <span aria-hidden="true">{moveSound ? '♫' : '♩̸'}</span><span>Sound {moveSound ? 'on' : 'off'}</span>
+          </button>
           <button type="button" className={`tabs-icons${moveIcons ? ' tabs-icons-on' : ''}`} onClick={() => setMoveIcons((value) => !value)} title="Toggle local move quality estimates (Q); labels appear after both positions reach depth 16, Brilliant after depth 22" aria-pressed={moveIcons}>!?</button>
-          <button type="button" className="tabs-mock" onClick={loadMock} title="Load a sample game with variations">Mock data</button>
           <button type="button" className="tabs-help" onClick={() => setHelpOpen(true)} title="Keyboard shortcuts (?)">
             ?
           </button>
@@ -510,14 +691,18 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           </button>
         </nav>
         <div className="toolbar">
-          <label className="layout-picker">Layout <select aria-label="Workspace layout" value={variant.id} onChange={(event) => changeVariant(event.target.value)}>{UI_VARIANTS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <button type="button" className="btn" onClick={() => { const title = window.prompt('Name this analysis', game ? `${game.white_name || 'White'} — ${game.black_name || 'Black'}` : 'Chess analysis'); if (title === null) return; saveAnalysis(tree, title); setToast('Analysis saved to your profile'); }}>Save analysis</button>
           <button type="button" className="btn" onClick={reset}>New</button>
           <button type="button" className="btn" onClick={flip} title="Flip board (F)">Flip</button>
           <button type="button" className="btn" onClick={() => setPgnOpen(true)}>Import PGN</button>
           <button type="button" className="btn" onClick={() => copy(toPgn(tree), 'PGN')}>Copy PGN</button>
-          <button type="button" className="btn" onClick={() => copy(current.fen, 'FEN')}>Copy FEN</button>
         </div></div>),
-    chat: workspace.chatOpen ? <ChatPanel fen={current.fen} onClose={() => setWorkspace((previous) => ({ ...previous, chatOpen: false }))} /> : null,
+    chat: workspace.chatOpen ? <ChatPanel conversationId={conversationId}
+      context={boardContext(tree, currentId, coachBoard.source, game?.id, preparation, engineEnabled ? engine : undefined)}
+      prepareContext={prepareCoachContext}
+      onPreviewLine={previewCoachLine}
+      onApplyLine={playCoachLine} onConversationCreated={(id, sourceId) => { if (sourceId) { try { const saved = localStorage.getItem(`chessscope.board:${sourceId}`); if (saved) { const clone = JSON.parse(saved) as MoveTree; if (clone.nodes?.[clone.rootId]) { setTree(prepareRestoredTree(clone)); select(clone.rootId); } } } catch { /* Continue with the current board. */ } } setConversationId(id); if (game?.id) { try { localStorage.setItem(`chessscope.gameChat:${game.id}`, id); } catch { /* Chat remains open for this visit. */ } } }}
+      onDetachPreparation={() => { void selectPreparation(undefined).catch(() => setToast('Could not detach preparation. Try again.')); }} onClose={() => setWorkspace((previous) => ({ ...previous, chatOpen: false }))} /> : null,
     treeDock: <section className="tree-dock" aria-label="Tree of lines">
       <header className="tree-dock-header"><span>Lines</span><span className="tabs-meta">{positionCount} nodes · {sideLines} lines</span></header>
       <TreeView key={mockLoaded ? 'mock' : 'game'} tree={tree} layout={layout} currentId={currentId} qualities={qualities} onSelect={select} onContextMenu={openMenu} />
@@ -526,28 +711,34 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
 
   return (
     <div
-      className={`app${import.meta.env.DEV ? ' app-with-switcher' : ''}`}
+      className="app"
       data-ui={variant.id}
+      data-chat-open={workspace.chatOpen}
       ref={appRef}
-      style={variant.id === 'workspace' ? workspaceStyle : undefined}
+      style={workspaceStyle}
       onClick={() => {
         setMenu(null);
         setChooser(null);
       }}
     >
-      {variant.id === 'workspace' ? <>
-        {workspace.chatOpen && <>
-          {sections.chat}
-          <div className="workspace-resizer" role="separator" aria-label="Resize coach and board" aria-orientation="vertical" aria-valuenow={Math.round(workspace.chat)} tabIndex={0} onPointerDown={(event) => beginResize('chat', event)} onKeyDown={(event) => resizeWithKeyboard('chat', event)} />
-        </>}
-        {sections.board}
-        <div className="workspace-resizer" role="separator" aria-label="Resize board and moves" aria-orientation="vertical" aria-valuenow={Math.round(workspace.moves)} tabIndex={0} onPointerDown={(event) => beginResize('moves', event)} onKeyDown={(event) => resizeWithKeyboard('moves', event)} />
-        <aside className="panel">{sections.engine}{sections.opening}{sections.moves}{sections.nav}</aside>
-      </> : variant.columns.map((column, index) => (
-        <div key={`${variant.id}-${index}`} className={`ui-column ui-column-${index}${column.includes('board') ? ' ui-column-board' : ' panel'}`}>
-          {column.map((section) => <Fragment key={section}>{sections[section]}</Fragment>)}
+      {variant.columns.slice(0, workspace.chatOpen ? 3 : 2).map((column, index) => <Fragment key={index}>
+        {index > 0 && <div className="obsidian-resizer" role="separator"
+          aria-label={index === 1 ? 'Resize board and analysis' : 'Resize analysis and coach'}
+          aria-orientation="vertical" tabIndex={0}
+          onPointerDown={(event) => beginResize(index === 1 ? 'middle' : 'coach', event)}
+          onKeyDown={(event) => resizeWithKeyboard(index === 1 ? 'middle' : 'coach', event)} />}
+        <div ref={index === 1 ? middleRef : undefined} className={`ui-column ui-column-${index}${column.includes('board') ? ' ui-column-board' : ' panel'}`}>
+        {column.map((section) => section === 'treeDock' ? null : section === 'moves'
+            ? <div className="analysis-stack" key="analysis-stack" ref={stackRef}>
+                {sections.moves}
+                <div className="obsidian-resizer obsidian-resizer-horizontal" role="separator" aria-label="Resize moves and lines"
+                  aria-orientation="horizontal" aria-valuenow={Math.round(workspace.moves)} tabIndex={0}
+                  onPointerDown={(event) => beginResize('stack', event)} onKeyDown={(event) => resizeWithKeyboard('stack', event)} />
+                {sections.treeDock}
+              </div>
+            : <Fragment key={section}>{sections[section]}</Fragment>)}
         </div>
-      ))}
+      </Fragment>)}
 
       {menu && (
         <div className="context-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
@@ -563,6 +754,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           <button
             type="button"
             onClick={() => {
+              markAnalysisChanged();
               setTree(promoteNode(tree, menu.nodeId));
               setMenu(null);
             }}
@@ -573,6 +765,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
             type="button"
             className="danger"
             onClick={() => {
+              markAnalysisChanged();
               const result = deleteNode(tree, menu.nodeId);
               setTree(result.tree);
               if (!result.tree.nodes[currentId]) select(result.parentId);
@@ -599,6 +792,10 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
         <PgnDialog
           onClose={() => setPgnOpen(false)}
           onImport={(imported) => {
+            if (!confirmDiscardAnalysis()) return;
+            markAnalysisChanged();
+            setCoachBoard({ id: newAnalysisId(), source: 'import' });
+            setConversationId(newAnalysisId());
             setTree(imported);
             select(imported.rootId);
             setPgnOpen(false);
@@ -614,6 +811,7 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
           san={tree.nodes[renaming].san ?? ''}
           onClose={() => setRenaming(null)}
           onSave={(name) => {
+            markAnalysisChanged();
             setTree(renameNode(tree, renaming, name));
             setRenaming(null);
           }}
@@ -623,8 +821,6 @@ export default function App({ initialTree, game, onMockChange }: { initialTree?:
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
 
       {settingsOpen && <BoardSettingsDialog onClose={() => setSettingsOpen(false)} />}
-
-      {import.meta.env.DEV && <UiSwitcher current={variant.id} onChange={changeVariant} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

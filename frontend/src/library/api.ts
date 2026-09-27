@@ -34,8 +34,8 @@ export interface GameDetail extends GameSummary {
 }
 
 export interface GameList { total: number; page: number; limit: number; games: GameSummary[] }
-export interface Tournament { id: number; name: string; games: number }
-export interface TournamentList { total: number; page: number; limit: number; tournaments: Tournament[] }
+export interface Tournament { id: number; name: string; games: number; totalGames?: number; avgElo?: number | null; players?: number; ratedPlayers?: number; lastDate?: string | null }
+export interface TournamentList { total: number; page: number; limit: number; period: 'recent' | 'all'; recentFrom: string; tournaments: Tournament[] }
 export interface TournamentDetail extends Tournament {
   first_date: string | null;
   last_date: string | null;
@@ -44,8 +44,11 @@ export interface TournamentDetail extends Tournament {
   white_wins: number;
   black_wins: number;
   draws: number;
+  strength?: { avgElo: number | null; players: number; ratedPlayers: number; games: number; lastDate: string | null };
+  recentStrength?: { avgElo: number | null; players: number; ratedPlayers: number; games: number; lastDate: string | null };
 }
 export interface PlayerDetail { fide_id: number; name: string; federation: string | null; federation_basis: string | null; flag: string | null; games: number; official_rating?: number | null; rating_month?: string | null }
+export interface PlayerGameRow extends GameSummary { played_on: string | null; white_rating: number | null; black_rating: number | null }
 export interface Overview { games: number; tournaments: number; players: number; years: { year: number; games: number }[] }
 
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {

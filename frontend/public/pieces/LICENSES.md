@@ -7,7 +7,6 @@ sets marked "non-commercial" on lichess are deliberately left out.
 | Folder | Author | Licence |
 |---|---|---|
 | cburnett | Colin M.L. Burnett | GPLv2+ |
-| glass | generated from cburnett by `scripts/build-glass-pieces.mjs` | GPLv2+ |
 | merida | Armando Hernandez Marroquin | GPLv2+ |
 | chessnut | Alexis Luengas | Apache 2.0 |
 | mpchess | Maxime Chupin | GPLv3+ |
